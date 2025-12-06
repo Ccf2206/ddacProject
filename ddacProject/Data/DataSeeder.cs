@@ -15,11 +15,8 @@ namespace ddacProject.Data
 
         public async Task SeedAsync()
         {
-            // Check if data already exists
-            if (_context.Roles.Any())
-            {
-                return; // Data already seeded
-            }
+            // Clear all existing data first
+            await ClearDataAsync();
 
             // Seed Roles with granular permissions
             var roles = new List<Role>
@@ -96,6 +93,15 @@ namespace ddacProject.Data
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword("Tenant123!"),
                     RoleId = tenantRole.RoleId,
                     Status = "Active"
+                },
+                new User
+                {
+                    Name = "Emily Chen",
+                    Email = "tenant3@email.com",
+                    Phone = "0123456784",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Tenant123!"),
+                    RoleId = tenantRole.RoleId,
+                    Status = "Active"
                 }
             };
             await _context.Users.AddRangeAsync(users);
@@ -168,6 +174,7 @@ namespace ddacProject.Data
             // Seed Units
             var floor1 = floors.First(f => f.FloorNumber == 1);
             var floor2 = floors.First(f => f.FloorNumber == 2);
+            var floor3 = floors.First(f => f.FloorNumber == 3);
 
             var units = new List<Unit>
             {
@@ -180,7 +187,7 @@ namespace ddacProject.Data
                     RentPrice = 1500,
                     DepositAmount = 3000,
                     MaxTenants = 4,
-                    Status = "Available",
+                    Status = "Occupied",
                     Notes = "Corner unit with city view"
                 },
                 new Unit
@@ -204,8 +211,32 @@ namespace ddacProject.Data
                     RentPrice = 1800,
                     DepositAmount = 3600,
                     MaxTenants = 6,
-                    Status = "Available",
+                    Status = "Occupied",
                     Notes = "Spacious layout"
+                },
+                new Unit
+                {
+                    FloorId = floor2.FloorId,
+                    UnitNumber = "A-2-02",
+                    Size = 700,
+                    Type = "Studio",
+                    RentPrice = 1000,
+                    DepositAmount = 2000,
+                    MaxTenants = 2,
+                    Status = "Available",
+                    Notes = "Compact and modern"
+                },
+                new Unit
+                {
+                    FloorId = floor3.FloorId,
+                    UnitNumber = "A-3-01",
+                    Size = 900,
+                    Type = "2BR",
+                    RentPrice = 1600,
+                    DepositAmount = 3200,
+                    MaxTenants = 4,
+                    Status = "Maintenance",
+                    Notes = "Under renovation"
                 }
             };
             await _context.Units.AddRangeAsync(units);
@@ -214,7 +245,10 @@ namespace ddacProject.Data
             // Seed Tenants
             var tenant1User = users.First(u => u.Email == "tenant1@email.com");
             var tenant2User = users.First(u => u.Email == "tenant2@email.com");
-            var occupiedUnit = units.First(u => u.UnitNumber == "A-1-02");
+            var tenant3User = users.First(u => u.Email == "tenant3@email.com");
+            var unit1 = units.First(u => u.UnitNumber == "A-1-01");
+            var unit2 = units.First(u => u.UnitNumber == "A-1-02");
+            var unit3 = units.First(u => u.UnitNumber == "A-2-01");
 
             var tenants = new List<Tenant>
             {
@@ -222,52 +256,102 @@ namespace ddacProject.Data
                 {
                     UserId = tenant1User.UserId,
                     ICNumber = "900101-01-1234",
+                    DateOfBirth = new DateTime(1990, 1, 1),
                     EmergencyContact = "Jane Doe - 0123456700",
-                    CurrentUnitId = occupiedUnit.UnitId,
-                    MoveInDate = DateTime.Now.AddMonths(-6),
-                    Notes = "Good tenant"
+                    CurrentUnitId = unit1.UnitId,
+                    MoveInDate = DateTime.Now.AddMonths(-12),
+                    Notes = "Long-term tenant, excellent payment history"
                 },
                 new Tenant
                 {
                     UserId = tenant2User.UserId,
                     ICNumber = "880202-02-5678",
+                    DateOfBirth = new DateTime(1988, 2, 2),
                     EmergencyContact = "Mary Smith - 0123456701",
-                    CurrentUnitId = null,
-                    MoveInDate = null,
-                    Notes = "Previous tenant, looking for new unit"
+                    CurrentUnitId = unit2.UnitId,
+                    MoveInDate = DateTime.Now.AddMonths(-6),
+                    Notes = "Good tenant"
+                },
+                new Tenant
+                {
+                    UserId = tenant3User.UserId,
+                    ICNumber = "950303-03-9012",
+                    DateOfBirth = new DateTime(1995, 3, 3),
+                    EmergencyContact = "Tom Chen - 0123456702",
+                    CurrentUnitId = unit3.UnitId,
+                    MoveInDate = DateTime.Now.AddMonths(-3),
+                    Notes = "New tenant, settling in well"
                 }
             };
             await _context.Tenants.AddRangeAsync(tenants);
             await _context.SaveChangesAsync();
 
-            // Seed Lease
+            // Seed Leases
             var tenant1 = tenants.First(t => t.UserId == tenant1User.UserId);
-            var lease = new Lease
+            var tenant2 = tenants.First(t => t.UserId == tenant2User.UserId);
+            var tenant3 = tenants.First(t => t.UserId == tenant3User.UserId);
+
+            var leases = new List<Lease>
             {
-                TenantId = tenant1.TenantId,
-                UnitId = occupiedUnit.UnitId,
-                RentAmount = 1200,
-                DepositAmount = 2400,
-                StartDate = DateTime.Now.AddMonths(-6),
-                EndDate = DateTime.Now.AddMonths(6),
-                PaymentCycle = "Monthly",
-                Status = "Active"
+                new Lease
+                {
+                    TenantId = tenant1.TenantId,
+                    UnitId = unit1.UnitId,
+                    RentAmount = 1500,
+                    DepositAmount = 3000,
+                    StartDate = DateTime.Now.AddMonths(-12),
+                    EndDate = DateTime.Now.AddMonths(12),
+                    PaymentCycle = "Monthly",
+                    Status = "Active"
+                },
+                new Lease
+                {
+                    TenantId = tenant2.TenantId,
+                    UnitId = unit2.UnitId,
+                    RentAmount = 1200,
+                    DepositAmount = 2400,
+                    StartDate = DateTime.Now.AddMonths(-6),
+                    EndDate = DateTime.Now.AddMonths(6),
+                    PaymentCycle = "Monthly",
+                    Status = "Active"
+                },
+                new Lease
+                {
+                    TenantId = tenant3.TenantId,
+                    UnitId = unit3.UnitId,
+                    RentAmount = 1800,
+                    DepositAmount = 3600,
+                    StartDate = DateTime.Now.AddMonths(-3),
+                    EndDate = DateTime.Now.AddMonths(9),
+                    PaymentCycle = "Monthly",
+                    Status = "Active"
+                }
             };
-            await _context.Leases.AddAsync(lease);
+            await _context.Leases.AddRangeAsync(leases);
             await _context.SaveChangesAsync();
 
             // Seed Invoices
             var invoices = new List<Invoice>();
-            for (int i = 0; i < 3; i++)
+            foreach (var lease in leases)
             {
-                invoices.Add(new Invoice
+                // Create 6 months of invoices for each lease
+                for (int i = 0; i < 6; i++)
                 {
-                    LeaseId = lease.LeaseId,
-                    Amount = 1200,
-                    IssueDate = DateTime.Now.AddMonths(-3 + i).AddDays(-5),
-                    DueDate = DateTime.Now.AddMonths(-3 + i),
-                    Status = i < 2 ? "Paid" : "Unpaid"
-                });
+                    var issueDate = DateTime.Now.AddMonths(-5 + i).AddDays(-5);
+                    var dueDate = DateTime.Now.AddMonths(-5 + i);
+                    var status = i < 5 ? "Paid" : (i == 5 ? "Unpaid" : "Overdue");
+
+                    invoices.Add(new Invoice
+                    {
+                        LeaseId = lease.LeaseId,
+                        Amount = lease.RentAmount,
+                        IssueDate = issueDate,
+                        DueDate = dueDate,
+                        Status = status,
+                        OverdueReminderCount = status == "Overdue" ? 1 : 0,
+                        LastReminderSentAt = status == "Overdue" ? DateTime.Now.AddDays(-2) : (DateTime?)null
+                    });
+                }
             }
             await _context.Invoices.AddRangeAsync(invoices);
             await _context.SaveChangesAsync();
@@ -306,33 +390,96 @@ namespace ddacProject.Data
                     Amount = 1200,
                     Description = "Water bill for common areas",
                     Date = DateTime.Now.AddDays(-15)
+                },
+                new Expense
+                {
+                    PropertyId = property.PropertyId,
+                    Category = "Maintenance",
+                    Amount = 800,
+                    Description = "Landscaping services",
+                    Date = DateTime.Now.AddDays(-20)
+                },
+                new Expense
+                {
+                    PropertyId = property.PropertyId,
+                    Category = "Security",
+                    Amount = 2500,
+                    Description = "Monthly security guard salary",
+                    Date = DateTime.Now.AddDays(-10)
                 }
             };
             await _context.Expenses.AddRangeAsync(expenses);
             await _context.SaveChangesAsync();
 
             // Seed Maintenance Requests
-            var maintenanceRequest = new MaintenanceRequest
+            var maintenanceRequests = new List<MaintenanceRequest>
             {
-                TenantId = tenant1.TenantId,
-                UnitId = occupiedUnit.UnitId,
-                IssueType = "Plumbing",
-                Description = "Leaking faucet in kitchen",
-                Priority = "Medium",
-                Status = "Pending"
+                new MaintenanceRequest
+                {
+                    TenantId = tenant1.TenantId,
+                    UnitId = unit1.UnitId,
+                    IssueType = "Plumbing",
+                    Description = "Leaking faucet in kitchen",
+                    Priority = "Medium",
+                    Status = "In Progress"
+                },
+                new MaintenanceRequest
+                {
+                    TenantId = tenant2.TenantId,
+                    UnitId = unit2.UnitId,
+                    IssueType = "Electrical",
+                    Description = "Light fixture not working in bedroom",
+                    Priority = "Low",
+                    Status = "Pending"
+                },
+                new MaintenanceRequest
+                {
+                    TenantId = tenant3.TenantId,
+                    UnitId = unit3.UnitId,
+                    IssueType = "HVAC",
+                    Description = "Air conditioning not cooling properly",
+                    Priority = "High",
+                    Status = "Assigned"
+                }
             };
-            await _context.MaintenanceRequests.AddAsync(maintenanceRequest);
+            await _context.MaintenanceRequests.AddRangeAsync(maintenanceRequests);
             await _context.SaveChangesAsync();
 
-            // Seed Maintenance Assignment
-            var assignment = new MaintenanceAssignment
+            // Seed Maintenance Assignments
+            var request1 = maintenanceRequests[0];
+            var request3 = maintenanceRequests[2];
+
+            var assignments = new List<MaintenanceAssignment>
             {
-                MaintenanceRequestId = maintenanceRequest.MaintenanceRequestId,
-                TechnicianId = technician.TechnicianId,
-                AssignedDate = DateTime.Now,
-                Status = "Assigned"
+                new MaintenanceAssignment
+                {
+                    MaintenanceRequestId = request1.MaintenanceRequestId,
+                    TechnicianId = technician.TechnicianId,
+                    AssignedDate = DateTime.Now.AddDays(-2),
+                    Status = "In Progress"
+                },
+                new MaintenanceAssignment
+                {
+                    MaintenanceRequestId = request3.MaintenanceRequestId,
+                    TechnicianId = technician.TechnicianId,
+                    AssignedDate = DateTime.Now.AddHours(-6),
+                    Status = "Assigned"
+                }
             };
-            await _context.MaintenanceAssignments.AddAsync(assignment);
+            await _context.MaintenanceAssignments.AddRangeAsync(assignments);
+            await _context.SaveChangesAsync();
+
+            // Seed Maintenance Updates
+            var update = new MaintenanceUpdate
+            {
+                MaintenanceRequestId = request1.MaintenanceRequestId,
+                TechnicianId = technician.TechnicianId,
+                Notes = "Replaced faucet cartridge. Issue should be resolved.",
+                CostOfParts = 45.50m,
+                Status = "In Progress",
+                UpdatedAt = DateTime.Now.AddDays(-1)
+            };
+            await _context.MaintenanceUpdates.AddAsync(update);
             await _context.SaveChangesAsync();
 
             // Seed Notifications
@@ -343,11 +490,25 @@ namespace ddacProject.Data
                     UserId = tenant1User.UserId,
                     Message = "Your maintenance request has been assigned to a technician",
                     Type = "MaintenanceUpdate",
-                    IsRead = false
+                    IsRead = true
                 },
                 new Notification
                 {
                     UserId = tenant1User.UserId,
+                    Message = "Rent payment due in 5 days",
+                    Type = "RentReminder",
+                    IsRead = false
+                },
+                new Notification
+                {
+                    UserId = tenant2User.UserId,
+                    Message = "Your maintenance request has been received",
+                    Type = "MaintenanceUpdate",
+                    IsRead = false
+                },
+                new Notification
+                {
+                    UserId = tenant3User.UserId,
                     Message = "Rent payment due in 5 days",
                     Type = "RentReminder",
                     IsRead = false
@@ -357,6 +518,48 @@ namespace ddacProject.Data
             await _context.SaveChangesAsync();
 
             Console.WriteLine("✓ Database seeded successfully!");
+            Console.WriteLine($"  - {roles.Count} roles");
+            Console.WriteLine($"  - {users.Count} users");
+            Console.WriteLine($"  - {tenants.Count} tenants");
+            Console.WriteLine($"  - {leases.Count} leases");
+            Console.WriteLine($"  - {invoices.Count} invoices");
+            Console.WriteLine($"  - {paidInvoices.Count} payments");
+            Console.WriteLine($"  - {expenses.Count} expenses");
+            Console.WriteLine($"  - {maintenanceRequests.Count} maintenance requests");
+        }
+
+        private async Task ClearDataAsync()
+        {
+            // Clear data in reverse dependency order
+            _context.MaintenanceUpdates.RemoveRange(_context.MaintenanceUpdates);
+            _context.MaintenanceAssignments.RemoveRange(_context.MaintenanceAssignments);
+            _context.MaintenancePhotos.RemoveRange(_context.MaintenancePhotos);
+            _context.MaintenanceRequests.RemoveRange(_context.MaintenanceRequests);
+            _context.Messages.RemoveRange(_context.Messages);
+            _context.Notifications.RemoveRange(_context.Notifications);
+            _context.ScheduledNotifications.RemoveRange(_context.ScheduledNotifications);
+            _context.Payments.RemoveRange(_context.Payments);
+            _context.Invoices.RemoveRange(_context.Invoices);
+            _context.LeaseHistories.RemoveRange(_context.LeaseHistories);
+            _context.Leases.RemoveRange(_context.Leases);
+            _context.LeaseTemplates.RemoveRange(_context.LeaseTemplates);
+            _context.Expenses.RemoveRange(_context.Expenses);
+            _context.Tenants.RemoveRange(_context.Tenants);
+            _context.UnitPhotos.RemoveRange(_context.UnitPhotos);
+            _context.Units.RemoveRange(_context.Units);
+            _context.Floors.RemoveRange(_context.Floors);
+            _context.Buildings.RemoveRange(_context.Buildings);
+            _context.Properties.RemoveRange(_context.Properties);
+            _context.StaffActionApprovals.RemoveRange(_context.StaffActionApprovals);
+            _context.Technicians.RemoveRange(_context.Technicians);
+            _context.Staff.RemoveRange(_context.Staff);
+            _context.AuditLogs.RemoveRange(_context.AuditLogs);
+            _context.SystemConfigurations.RemoveRange(_context.SystemConfigurations);
+            _context.Users.RemoveRange(_context.Users);
+            _context.Roles.RemoveRange(_context.Roles);
+
+            await _context.SaveChangesAsync();
+            Console.WriteLine("✓ Existing data cleared");
         }
     }
 }
