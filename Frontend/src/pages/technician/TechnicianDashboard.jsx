@@ -1,0 +1,421 @@
+import { useState, useEffect } from 'react';
+import Navbar from '../../components/Navbar';
+import { maintenanceAPI } from '../../services/api';
+import axios from 'axios';
+import { FaWrench, FaEdit, FaCheck, FaExclamationTriangle, FaClipboardList, FaCheckCircle } from 'react-icons/fa';
+
+function TechnicianDashboard() {
+    const [requests, setRequests] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedTask, setSelectedTask] = useState(null);
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+    const [updateForm, setUpdateForm] = useState({
+        notes: '',
+        costOfParts: '',
+        status: ''
+    });
+    const [beforePhoto, setBeforePhoto] = useState(null);
+    const [afterPhoto, setAfterPhoto] = useState(null);
+    const [uploading, setUploading] = useState(false);
+
+    useEffect(() => {
+        fetchRequests();
+    }, []);
+
+    const fetchRequests = async () => {
+        try {
+            const response = await maintenanceAPI.getAll({});
+            setRequests(response.data);
+            setLoading(false);
+        } catch (error) {
+            console.error('Error fetching maintenance requests:', error);
+            setLoading(false);
+        }
+    };
+
+    const handleOpenUpdateModal = (task) => {
+        setSelectedTask(task);
+        setUpdateForm({
+            notes: '',
+            costOfParts: '',
+            status: task.status
+        });
+        setShowUpdateModal(true);
+    };
+
+    const handleUpdateTask = async (e) => {
+        e.preventDefault();
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post(
+                `http://localhost:5000/api/maintenance/${selectedTask.maintenanceRequestId}/update`,
+                {
+                    notes: updateForm.notes,
+                    costOfParts: parseFloat(updateForm.costOfParts) || 0,
+                    status: updateForm.status
+                },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            alert('Task updated successfully!');
+            setShowUpdateModal(false);
+            fetchRequests();
+        } catch (error) {
+            console.error('Error updating task:', error);
+            alert('Error updating task: ' + (error.response?.data?.message || error.message));
+        }
+    };
+
+    const handlePhotoUpload = async (taskId, file, type) => {
+        try {
+            setUploading(true);
+            const token = localStorage.getItem('token');
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('type', type);
+
+            await axios.post(
+                `http://localhost:5000/api/maintenance/${taskId}/photos`,
+                formData,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'multipart/form-data'
+                    }
+                }
+            );
+
+            alert(`${type} photo uploaded successfully!`);
+            if (type === 'Initial') setBeforePhoto(null);
+            if (type === 'Completed') setAfterPhoto(null);
+            fetchRequests();
+        } catch (error) {
+            console.error('Error uploading photo:', error);
+            alert('Error uploading photo');
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleEscalate = async (taskId) => {
+        const reason = prompt('Enter escalation reason:');
+        if (!reason) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post(
+                `http://localhost:5000/api/maintenance/${taskId}/escalate`,
+                { reason },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            alert('Task escalated successfully!');
+            fetchRequests();
+        } catch (error) {
+            console.error('Error escalating task:', error);
+            alert('Error escalating task');
+        }
+    };
+
+    const handleMarkComplete = async (task) => {
+        if (!window.confirm('Mark this task as completed?')) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post(
+                `http://localhost:5000/api/maintenance/${task.maintenanceRequestId}/update`,
+                {
+                    notes: 'Task completed',
+                    costOfParts: 0,
+                    status: 'Completed'
+                },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            alert('Task marked as completed!');
+            fetchRequests();
+        } catch (error) {
+            console.error('Error completing task:', error);
+            alert('Error completing task');
+        }
+    };
+
+    const getPriorityColor = (priority) => {
+        const colors = {
+            Low: 'bg-blue-100 text-blue-800',
+            Medium: 'bg-yellow-100 text-yellow-800',
+            High: 'bg-orange-100 text-orange-800',
+            Urgent: 'bg-red-100 text-red-800',
+        };
+        return colors[priority] || 'bg-gray-100 text-gray-800';
+    };
+
+    const getStatusColor = (status) => {
+        const colors = {
+            Pending: 'bg-yellow-100 text-yellow-800',
+            InProgress: 'bg-blue-100 text-blue-800',
+            'In Progress': 'bg-blue-100 text-blue-800',
+            Completed: 'bg-green-100 text-green-800',
+        };
+        return colors[status] || 'bg-gray-100 text-gray-800';
+    };
+
+    const pendingRequests = requests.filter(r => r.status === 'Pending' || r.status === 'InProgress' || r.status === 'In Progress');
+    const completedRequests = requests.filter(r => r.status === 'Completed');
+
+    return (
+        <div className="min-h-screen bg-gray-50">
+            <Navbar />
+
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <h2 className="text-3xl font-bold text-gray-800 mb-8 flex items-center gap-2"><FaWrench /> Technician Dashboard</h2>
+
+                {/* Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div className="card bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+                        <p className="text-orange-100 text-sm">Assigned Tasks</p>
+                        <p className="text-4xl font-bold mt-2">{pendingRequests.length}</p>
+                    </div>
+                    <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
+                        <p className="text-green-100 text-sm">Completed</p>
+                        <p className="text-4xl font-bold mt-2">{completedRequests.length}</p>
+                    </div>
+                    <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                        <p className="text-blue-100 text-sm">Total Tasks</p>
+                        <p className="text-4xl font-bold mt-2">{requests.length}</p>
+                    </div>
+                </div>
+
+                {/* Pending Tasks */}
+                <div className="card mb-6">
+                    <h3 className="text-xl font-semibold mb-4 flex items-center gap-2"><FaClipboardList /> Active Tasks</h3>
+                    {loading ? (
+                        <p>Loading...</p>
+                    ) : pendingRequests.length > 0 ? (
+                        <div className="space-y-4">
+                            {pendingRequests.map((request) => (
+                                <div key={request.maintenanceRequestId} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div>
+                                            <h4 className="font-semibold text-gray-800 text-lg">{request.issueType}</h4>
+                                            <p className="text-sm text-gray-600">Unit: {request.unit?.unitNumber || 'N/A'}</p>
+                                            <p className="text-sm text-gray-600">
+                                                Tenant: {request.tenant?.user?.name || 'N/A'}
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col gap-2">
+                                            <span className={`badge ${getPriorityColor(request.priority)}`}>
+                                                {request.priority}
+                                            </span>
+                                            <span className={`badge ${getStatusColor(request.status)}`}>
+                                                {request.status}
+                                            </span>
+                                            {request.isEscalated && (
+                                                <span className="badge bg-red-100 text-red-800">🚨 Escalated</span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <p className="text-gray-700 mb-4">{request.description}</p>
+
+                                    <div className="flex justify-between items-center text-sm border-t pt-3">
+                                        <span className="text-gray-500">
+                                            📅 Reported: {new Date(request.createdAt).toLocaleDateString()}
+                                        </span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => handleOpenUpdateModal(request)}
+                                                className="btn btn-primary btn-sm flex items-center gap-1"
+                                            >
+                                                <FaEdit /> Update
+                                            </button>
+                                            {request.status !== 'Completed' && (
+                                                <button
+                                                    onClick={() => handleMarkComplete(request)}
+                                                    className="btn btn-success btn-sm"
+                                                >
+                                                    ✅ Complete
+                                                </button>
+                                            )}
+                                            {!request.isEscalated && (
+                                                <button
+                                                    onClick={() => handleEscalate(request.maintenanceRequestId)}
+                                                    className="btn btn-warning btn-sm"
+                                                >
+                                                    ⚠️ Escalate
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-gray-500">No active tasks assigned</p>
+                    )}
+                </div>
+
+                {/* Completed Tasks */}
+                <div className="card">
+                    <h3 className="text-xl font-semibold mb-4 flex items-center gap-2"><FaCheckCircle /> Completed Tasks</h3>
+                    {completedRequests.length > 0 ? (
+                        <div className="space-y-3">
+                            {completedRequests.map((request) => (
+                                <div key={request.maintenanceRequestId} className="p-3 bg-green-50 rounded-lg border border-green-200">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <p className="font-medium text-gray-800">{request.issueType}</p>
+                                            <p className="text-sm text-gray-600">Unit {request.unit?.unitNumber || 'N/A'}</p>
+                                            <p className="text-xs text-gray-500">
+                                                Completed: {new Date(request.updatedAt).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                        <span className="badge badge-success flex items-center gap-1"><FaCheck /> Completed</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-gray-500">No completed tasks yet</p>
+                    )}
+                </div>
+            </div>
+
+            {/* Update Task Modal */}
+            {showUpdateModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="p-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-2xl font-bold">Update Task: {selectedTask.issueType}</h3>
+                                <button
+                                    onClick={() => setShowUpdateModal(false)}
+                                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                                >
+                                    ×
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleUpdateTask} className="space-y-4">
+                                {/* Status */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Status *
+                                    </label>
+                                    <select
+                                        value={updateForm.status}
+                                        onChange={(e) => setUpdateForm({ ...updateForm, status: e.target.value })}
+                                        className="input"
+                                        required
+                                    >
+                                        <option value="Pending">Pending</option>
+                                        <option value="InProgress">In Progress</option>
+                                        <option value="Completed">Completed</option>
+                                    </select>
+                                </div>
+
+                                {/* Notes */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Repair Notes *
+                                    </label>
+                                    <textarea
+                                        value={updateForm.notes}
+                                        onChange={(e) => setUpdateForm({ ...updateForm, notes: e.target.value })}
+                                        className="input"
+                                        rows="4"
+                                        placeholder="Describe the work done, parts replaced, etc."
+                                        required
+                                    />
+                                </div>
+
+                                {/* Cost of Parts */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Cost of Parts (RM)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        value={updateForm.costOfParts}
+                                        onChange={(e) => setUpdateForm({ ...updateForm, costOfParts: e.target.value })}
+                                        className="input"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+
+                                {/* Photo Uploads */}
+                                <div className="border-t pt-4">
+                                    <h4 className="font-semibold mb-3">📸 Upload Photos</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {/* Before Photo */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Before Photo
+                                            </label>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => setBeforePhoto(e.target.files[0])}
+                                                className="input text-sm"
+                                            />
+                                            {beforePhoto && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handlePhotoUpload(selectedTask.maintenanceRequestId, beforePhoto, 'Initial')}
+                                                    disabled={uploading}
+                                                    className="btn btn-sm btn-primary mt-2 w-full"
+                                                >
+                                                    {uploading ? 'Uploading...' : 'Upload Before Photo'}
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* After Photo */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                After Photo
+                                            </label>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => setAfterPhoto(e.target.files[0])}
+                                                className="input text-sm"
+                                            />
+                                            {afterPhoto && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handlePhotoUpload(selectedTask.maintenanceRequestId, afterPhoto, 'Completed')}
+                                                    disabled={uploading}
+                                                    className="btn btn-sm btn-success mt-2 w-full"
+                                                >
+                                                    {uploading ? 'Uploading...' : 'Upload After Photo'}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Submit Buttons */}
+                                <div className="flex gap-3 pt-4">
+                                    <button type="submit" className="btn btn-primary flex-1">
+                                        Save Update
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowUpdateModal(false)}
+                                        className="btn btn-secondary flex-1"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+export default TechnicianDashboard;

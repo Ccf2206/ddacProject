@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+Frontend/node_modules/
+
+# Build outputs
+Frontend/dist/
+Frontend/build/
+ddacProject/bin/
+ddacProject/obj/
+*.dll
+*.exe
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+
+# Uploads
+wwwroot/uploads/*
+!wwwroot/uploads/.gitkeep
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
