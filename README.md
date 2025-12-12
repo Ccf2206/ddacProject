@@ -298,8 +298,8 @@ cd ddacProject
    ```
 
 4. **Verify backend is running**
-   - Backend will start on: `http://localhost:5000`
-   - Swagger UI: `http://localhost:5000/swagger`
+   - Backend will start on: `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com`
+   - Swagger UI: `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/swagger`
    - Database will be automatically seeded with default users on first run
 
 ### Step 4: Frontend Setup

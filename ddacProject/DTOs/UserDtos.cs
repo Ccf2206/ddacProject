@@ -46,4 +46,17 @@ namespace ddacProject.DTOs
         public int TechnicianId { get; set; }
         public string? Specialty { get; set; }
     }
+    
+    public class UpdateOwnProfileDto
+    {
+        public string? Name { get; set; }
+        public string? Email { get; set; }
+        public string? Phone { get; set; }
+    }
+    
+    public class ChangePasswordDto
+    {
+        public string CurrentPassword { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
+    }
 }

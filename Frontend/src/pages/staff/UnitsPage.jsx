@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
+import SearchBar from '../../components/SearchBar';
 import UnitForm from '../../components/UnitForm';
 import ConfirmModal from '../../components/ConfirmModal';
 import { unitsAPI } from '../../services/api';
@@ -8,6 +9,9 @@ function UnitsPage() {
     const [units, setUnits] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(12);
     const [showForm, setShowForm] = useState(false);
     const [editingUnit, setEditingUnit] = useState(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -77,9 +81,29 @@ function UnitsPage() {
         return badges[status] || 'badge-info';
     };
 
-    const filteredUnits = units.filter(unit =>
-        filter === '' || unit.status === filter
-    );
+    // Apply search and status filter
+    const filteredUnits = units.filter(unit => {
+        const matchesSearch = 
+            unit.unitNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            unit.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            unit.floor?.building?.buildingName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            unit.floor?.building?.property?.propertyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            unit.status?.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        const matchesStatus = filter === '' || unit.status === filter;
+        
+        return matchesSearch && matchesStatus;
+    });
+
+    // Pagination logic
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentUnits = filteredUnits.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(filteredUnits.length / itemsPerPage);
+
+    const handlePageChange = (pageNumber) => {
+        setCurrentPage(pageNumber);
+    };
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -95,39 +119,53 @@ function UnitsPage() {
 
                 {/* Filters */}
                 <div className="card mb-6">
-                    <div className="flex space-x-4">
+                    <div className="mb-4">
+                        <SearchBar
+                            value={searchTerm}
+                            onChange={(value) => {
+                                setSearchTerm(value);
+                                setCurrentPage(1);
+                            }}
+                            placeholder="Search by unit number, type, building, property, or status..."
+                        />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
                         <button
-                            onClick={() => setFilter('')}
+                            onClick={() => { setFilter(''); setCurrentPage(1); }}
                             className={`btn ${filter === '' ? 'btn-primary' : 'btn-secondary'}`}
                         >
                             All ({units.length})
                         </button>
-                        <button
-                            onClick={() => setFilter('Available')}
-                            className={`btn ${filter === 'Available' ? 'btn-primary' : 'btn-secondary'}`}
-                        >
-                            Available ({units.filter(u => u.status === 'Available').length})
-                        </button>
-                        <button
-                            onClick={() => setFilter('Occupied')}
-                            className={`btn ${filter === 'Occupied' ? 'btn-primary' : 'btn-secondary'}`}
-                        >
-                            Occupied ({units.filter(u => u.status === 'Occupied').length})
-                        </button>
+                        {Array.from(new Set(units.map(u => u.status))).sort().map(status => (
+                            <button
+                                key={status}
+                                onClick={() => { setFilter(status); setCurrentPage(1); }}
+                                className={`btn ${filter === status ? 'btn-primary' : 'btn-secondary'}`}
+                            >
+                                {status} ({units.filter(u => u.status === status).length})
+                            </button>
+                        ))}
                     </div>
+                    <p className="text-sm text-gray-600 mt-3">
+                        Showing {currentUnits.length} of {filteredUnits.length} units (Page {currentPage} of {totalPages || 1})
+                    </p>
                 </div>
 
                 {/* Units Grid */}
                 {loading ? (
                     <p>Loading units...</p>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredUnits.map((unit) => (
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {currentUnits.map((unit) => (
                             <div key={unit.unitId} className="card hover:shadow-xl transition-shadow">
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
                                         <h3 className="text-xl font-semibold text-gray-800">{unit.unitNumber}</h3>
                                         <p className="text-sm text-gray-600">{unit.type}</p>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            {unit.floor?.building?.property?.name || 'N/A'}
+                                        </p>
                                     </div>
                                     <span className={`badge ${getStatusBadge(unit.status)}`}>
                                         {unit.status}
@@ -158,27 +196,66 @@ function UnitsPage() {
                                         {unit.notes}
                                     </p>
                                 )}
+                                {!unit.notes && (
+                                    <p className="mt-4 text-sm text-gray-400 italic border-t pt-4">
+                                        No note
+                                    </p>
+                                )}
 
                                 <div className="mt-4 flex space-x-2">
                                     <button
                                         onClick={() => handleEdit(unit)}
-                                        className="flex-1 text-sm text-primary-600 hover:text-primary-800 border border-primary-600 rounded px-3 py-1"
+                                        className="flex-1 text-sm text-primary-600 border border-primary-600 rounded px-3 py-1 hover:bg-primary-600 hover:text-white transition-colors"
                                     >
                                         Edit
                                     </button>
                                     <button
                                         onClick={() => { setDeletingUnit(unit); setShowDeleteModal(true); }}
-                                        className="flex-1 text-sm text-red-600 hover:text-red-800 border border-red-600 rounded px-3 py-1"
+                                        className="flex-1 text-sm text-red-600 border border-red-600 rounded px-3 py-1 hover:bg-red-600 hover:text-white transition-colors"
                                     >
                                         Delete
                                     </button>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                )}
+                            ))}
+                        </div>
 
-                {filteredUnits.length === 0 && !loading && (
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                            <div className="flex justify-center items-center space-x-2 mt-6">
+                                <button
+                                    onClick={() => handlePageChange(1)}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+                                >
+                                    First
+                                </button>
+                                <button
+                                    onClick={() => handlePageChange(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+                                >
+                                    Previous
+                                </button>
+                                <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                                <button
+                                    onClick={() => handlePageChange(currentPage + 1)}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+                                >
+                                    Next
+                                </button>
+                                <button
+                                    onClick={() => handlePageChange(totalPages)}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-100"
+                                >
+                                    Last
+                                </button>
+                            </div>
+                        )}
+                    </>
+                )}                {filteredUnits.length === 0 && !loading && (
                     <div className="card text-center py-12">
                         <p className="text-gray-500 mb-4">No units found</p>
                         <button onClick={handleCreate} className="btn btn-primary">

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api';
 
 // Create axios instance
 const api = axios.create({
@@ -29,10 +29,23 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            // Unauthorized - clear token and redirect to login
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            window.location.href = '/login';
+            // Get the request URL from the error
+            const requestUrl = error.config?.url || '';
+            
+            // Don't redirect for auth-related endpoints (login, register, checkAuth)
+            // to avoid redirect loops and let the calling code handle the error
+            const isAuthEndpoint = requestUrl.includes('/auth/');
+
+            if (!isAuthEndpoint) {
+                // Unauthorized - clear token and redirect to login
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                
+                // Prevent multiple redirects
+                if (window.location.pathname !== '/login') {
+                    window.location.href = '/login';
+                }
+            }
         }
         return Promise.reject(error);
     }
@@ -60,6 +73,7 @@ export const unitsAPI = {
     getById: (id) => api.get(`/units/${id}`),
     create: (data) => api.post('/units', data),
     update: (id, data) => api.put(`/units/${id}`, data),
+    delete: (id) => api.delete(`/units/${id}`),
     updateStatus: (id, status) => api.put(`/units/${id}/status`, { status }),
     uploadPhoto: (id, file, isPrimary) => {
         const formData = new FormData();
@@ -92,12 +106,15 @@ export const invoicesAPI = {
     getById: (id) => api.get(`/invoices/${id}`),
     create: (data) => api.post('/invoices', data),
     updateStatus: (id, status) => api.put(`/invoices/${id}/status`, { status }),
+    cleanupTerminated: () => api.delete('/invoices/cleanup-terminated'),
 };
 
 export const paymentsAPI = {
     getAll: () => api.get('/payments'),
     getById: (id) => api.get(`/payments/${id}`),
     create: (data) => api.post('/payments', data),
+    createTenant: (data) => api.post('/payments/tenant', data),
+    approve: (id, approved, reasonofReject = null) => api.put(`/payments/${id}/approve`, { approved, reasonofReject }),
     uploadProof: (id, file) => {
         const formData = new FormData();
         formData.append('file', file);
@@ -127,6 +144,7 @@ export const notificationsAPI = {
     getAll: () => api.get('/notifications'),
     markAsRead: (id) => api.put(`/notifications/${id}/read`),
     markAllAsRead: () => api.put('/notifications/read-all'),
+    delete: (id) => api.delete(`/notifications/${id}`),
 };
 
 export const usersAPI = {
@@ -173,4 +191,13 @@ export const expensesAPI = {
     create: (data) => api.post('/expenses', data),
     update: (id, data) => api.put(`/expenses/${id}`, data),
     delete: (id) => api.delete(`/expenses/${id}`),
+};
+
+export const messagesAPI = {
+    getAll: () => api.get('/messages'),
+    getById: (id) => api.get(`/messages/${id}`),
+    create: (data) => api.post('/messages', data),
+    markAsRead: (id) => api.put(`/messages/${id}/read`),
+    markAllAsRead: () => api.put('/messages/mark-all-read'),
+    delete: (id) => api.delete(`/messages/${id}`),
 };

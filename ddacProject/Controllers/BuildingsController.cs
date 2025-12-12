@@ -26,6 +26,13 @@ namespace ddacProject.Controllers
         [HttpPost]
         public async Task<ActionResult<Building>> CreateBuilding([FromBody] CreateBuildingDto dto)
         {
+            // Trim building name
+            dto.Name = dto.Name?.Trim() ?? string.Empty;
+
+            // Validate empty building name
+            if (string.IsNullOrWhiteSpace(dto.Name))
+                return BadRequest(new { message = "Building name cannot be empty or contain only spaces." });
+
             // Validate that property exists
             var property = await _context.Properties
                 .Include(p => p.Buildings)
@@ -34,6 +41,16 @@ namespace ddacProject.Controllers
             if (property == null)
             {
                 return BadRequest(new { error = "Property not found" });
+            }
+
+            // Check for duplicate building name within the same property (case-insensitive, after trimming)
+            var duplicateBuilding = await _context.Buildings
+                .FirstOrDefaultAsync(b => b.PropertyId == dto.PropertyId && 
+                                          b.Name.Trim().ToLower() == dto.Name.ToLower());
+
+            if (duplicateBuilding != null)
+            {
+                return BadRequest(new { message = $"There is already an existing building with the name '{dto.Name}' in this property." });
             }
 
             // Validate that we haven't exceeded the building count limit
@@ -89,14 +106,65 @@ namespace ddacProject.Controllers
         // PUT: api/buildings/5
         [RequirePermission(PermissionConstants.PROPERTIES_EDIT)]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateBuilding(int id, [FromBody] Building building)
+        public async Task<IActionResult> UpdateBuilding(int id, [FromBody] UpdateBuildingDto dto)
         {
-            if (id != building.BuildingId)
+            // Trim building name
+            dto.Name = dto.Name?.Trim() ?? string.Empty;
+
+            // Validate empty building name
+            if (string.IsNullOrWhiteSpace(dto.Name))
+                return BadRequest(new { message = "Building name cannot be empty or contain only spaces." });
+
+            var existingBuilding = await _context.Buildings
+                .Include(b => b.Floors)
+                    .ThenInclude(f => f.Units)
+                .FirstOrDefaultAsync(b => b.BuildingId == id);
+
+            if (existingBuilding == null)
             {
-                return BadRequest();
+                return NotFound(new { message = "Building not found" });
             }
 
-            _context.Entry(building).State = EntityState.Modified;
+            // Check for duplicate building name within the same property, excluding current building (after trimming)
+            var duplicateBuilding = await _context.Buildings
+                .FirstOrDefaultAsync(b => b.PropertyId == existingBuilding.PropertyId && 
+                                          b.BuildingId != id && 
+                                          b.Name.Trim().ToLower() == dto.Name.ToLower());
+
+            if (duplicateBuilding != null)
+            {
+                return BadRequest(new { message = $"There is already an existing building with the name '{dto.Name}' in this property." });
+            }
+
+            // Update basic properties
+            existingBuilding.Name = dto.Name;
+            
+            // Handle floor count changes
+            var currentFloorCount = existingBuilding.Floors.Count;
+            
+            if (dto.TotalFloors > currentFloorCount)
+            {
+                // Add new floors
+                for (int i = currentFloorCount + 1; i <= dto.TotalFloors; i++)
+                {
+                    _context.Floors.Add(new Floor
+                    {
+                        BuildingId = existingBuilding.BuildingId,
+                        FloorNumber = i
+                    });
+                }
+            }
+            else if (dto.TotalFloors < currentFloorCount)
+            {
+                // Get floors to be removed (allow reduction even if units exist)
+                var floorsToRemove = existingBuilding.Floors
+                    .Where(f => f.FloorNumber > dto.TotalFloors)
+                    .ToList();
+                    
+                _context.Floors.RemoveRange(floorsToRemove);
+            }
+
+            existingBuilding.TotalFloors = dto.TotalFloors;
 
             try
             {
@@ -111,7 +179,7 @@ namespace ddacProject.Controllers
                 throw;
             }
 
-            return NoContent();
+            return Ok(existingBuilding);
         }
 
         // DELETE: api/buildings/5

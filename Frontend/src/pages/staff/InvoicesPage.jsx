@@ -1,15 +1,20 @@
 import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import DataTable from '../../components/DataTable';
+import SearchBar from '../../components/SearchBar';
 import { invoicesAPI, leasesAPI } from '../../services/api';
-import { FaEnvelope } from 'react-icons/fa';
+import { FaEnvelope, FaTrash } from 'react-icons/fa';
+import useAuthStore from '../../stores/authStore';
 
 function InvoicesPage() {
+    const { user } = useAuthStore();
     const [invoices, setInvoices] = useState([]);
     const [leases, setLeases] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({ leaseId: '', amount: '', issueDate: '', dueDate: '' });
+    const [isCleaningUp, setIsCleaningUp] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -59,7 +64,7 @@ function InvoicesPage() {
             const token = localStorage.getItem('token');
             const axios = (await import('axios')).default;
             await axios.post(
-                `http://localhost:5000/api/invoices/${invoiceId}/send-reminder`,
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/invoices/${invoiceId}/send-reminder`,
                 {},
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -67,6 +72,24 @@ function InvoicesPage() {
         } catch (error) {
             console.error('Error sending reminder:', error);
             alert('Error sending reminder');
+        }
+    };
+
+    const handleCleanupTerminated = async () => {
+        if (!window.confirm('This will delete all invoices and payments associated with terminated leases. This action cannot be undone. Continue?')) {
+            return;
+        }
+
+        setIsCleaningUp(true);
+        try {
+            const response = await invoicesAPI.cleanupTerminated();
+            alert(`Cleanup completed successfully!\n\nInvoices deleted: ${response.data.invoicesDeleted}\nPayments deleted: ${response.data.paymentsDeleted}\nTerminated leases affected: ${response.data.terminatedLeasesAffected}`);
+            fetchData();
+        } catch (error) {
+            console.error('Error cleaning up:', error);
+            alert('Error: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setIsCleaningUp(false);
         }
     };
 
@@ -86,7 +109,7 @@ function InvoicesPage() {
             )
         },
         {
-            header: 'Amount',
+            header: 'Total Amount',
             accessor: 'amount',
             render: (row) => <span className="font-semibold">RM {row.amount.toFixed(2)}</span>
         },
@@ -105,11 +128,17 @@ function InvoicesPage() {
             accessor: 'status',
             render: (row) => {
                 const colors = {
-                    Paid: 'badge-success',
-                    Unpaid: 'badge-warning',
-                    Overdue: 'badge-danger'
+                    Paid: 'bg-green-100 text-green-800',
+                    Pending: 'bg-yellow-100 text-yellow-800',
+                    Unpaid: 'bg-gray-100 text-gray-800',
+                    Overdue: 'bg-red-100 text-red-800'
                 };
-                return <span className={`badge ${colors[row.status]}`}>{row.status}</span>;
+                const status = row.isOverdue ? 'Overdue' : row.status;
+                return (
+                    <span className={`px-2 py-1 text-xs rounded-full font-medium ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
+                        {status}
+                    </span>
+                );
             }
         },
         {
@@ -122,6 +151,7 @@ function InvoicesPage() {
                         className="text-sm border rounded px-2 py-1"
                     >
                         <option value="Unpaid">Unpaid</option>
+                        <option value="Pending">Pending</option>
                         <option value="Paid">Paid</option>
                         <option value="Overdue">Overdue</option>
                     </select>
@@ -139,16 +169,45 @@ function InvoicesPage() {
         }
     ];
 
+    // Filter invoices based on search term
+    const filteredInvoices = invoices.filter(invoice =>
+        invoice.lease?.tenant?.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        invoice.lease?.unit?.unitNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        invoice.invoiceId?.toString().includes(searchTerm) ||
+        invoice.status?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        invoice.amount?.toString().includes(searchTerm)
+    );
+
     return (
         <div className="min-h-screen bg-gray-50">
             <Navbar />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="flex justify-between items-center mb-8">
+                <div className="flex justify-between items-center mb-6">
                     <h2 className="text-3xl font-bold text-gray-800">Invoices Management</h2>
-                    <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
-                        {showForm ? 'Cancel' : '+ Generate Invoice'}
-                    </button>
+                    <div className="flex gap-3">
+                        {user?.roleName === 'Admin' && (
+                            <button 
+                                onClick={handleCleanupTerminated} 
+                                className="btn bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+                                disabled={isCleaningUp}
+                            >
+                                <FaTrash /> {isCleaningUp ? 'Cleaning...' : 'Cleanup Terminated'}
+                            </button>
+                        )}
+                        <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
+                            {showForm ? 'Cancel' : '+ Generate Invoice'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Search Bar */}
+                <div className="mb-6">
+                    <SearchBar
+                        value={searchTerm}
+                        onChange={setSearchTerm}
+                        placeholder="Search invoices by ID, tenant, unit, status, or amount..."
+                    />
                 </div>
 
                 {showForm && (
@@ -213,7 +272,12 @@ function InvoicesPage() {
                     {loading ? (
                         <p>Loading invoices...</p>
                     ) : (
-                        <DataTable columns={columns} data={invoices} />
+                        <>
+                            <div className="mb-4 text-sm text-gray-600">
+                                Showing {filteredInvoices.length} of {invoices.length} invoices
+                            </div>
+                            <DataTable columns={columns} data={filteredInvoices} />
+                        </>
                     )}
                 </div>
             </div>

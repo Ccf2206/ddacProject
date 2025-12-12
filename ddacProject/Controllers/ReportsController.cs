@@ -4,6 +4,7 @@ using ddacProject.Services;
 using ddacProject.Authorization;
 using ddacProject.Models;
 using System.Security.Claims;
+using System.Text;
 
 namespace ddacProject.Controllers
 {
@@ -103,6 +104,89 @@ namespace ddacProject.Controllers
             {
                 _logger.LogError(ex, "Error generating maintenance report");
                 return StatusCode(500, new { message = "Error generating maintenance report" });
+            }
+        }
+
+        // GET: api/reports/financial/export
+        [HttpGet("financial/export")]
+        [Authorize(Roles = "Admin,Staff")]
+        public async Task<IActionResult> ExportFinancialReport(
+            [FromQuery] DateTime startDate,
+            [FromQuery] DateTime endDate,
+            [FromQuery] int? propertyId = null)
+        {
+            try
+            {
+                var data = await _reportingService.GetFinancialExportDataAsync(startDate, endDate, propertyId);
+                
+                var csv = new StringBuilder();
+                csv.AppendLine("Date,Type,Category,Amount,Status,Payer/Payee");
+                
+                foreach (var item in data)
+                {
+                    csv.AppendLine($"{item.Date:yyyy-MM-dd},{item.Type},{item.Category},{item.Amount},{item.Status},{item.PayerPayee}");
+                }
+
+                return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"financial_report_{DateTime.Now:yyyyMMdd}.csv");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error exporting financial report");
+                return StatusCode(500, new { message = "Error exporting financial report" });
+            }
+        }
+
+        // GET: api/reports/occupancy/export
+        [HttpGet("occupancy/export")]
+        [Authorize(Roles = "Admin,Staff")]
+        public async Task<IActionResult> ExportOccupancyReport([FromQuery] int? propertyId = null)
+        {
+            try
+            {
+                var data = await _reportingService.GetOccupancyExportDataAsync(propertyId);
+
+                var csv = new StringBuilder();
+                csv.AppendLine("Unit Number,Type,Status,Size,Rent Price,Current Tenant,Lease End Date");
+
+                foreach (var item in data)
+                {
+                    csv.AppendLine($"{item.UnitNumber},{item.Type},{item.Status},{item.Size},{item.RentPrice},{item.CurrentTenant},{(item.LeaseEndDate?.ToString("yyyy-MM-dd") ?? "")}");
+                }
+
+                return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"occupancy_report_{DateTime.Now:yyyyMMdd}.csv");
+            }
+            catch (Exception ex)
+            {
+                 _logger.LogError(ex, "Error exporting occupancy report");
+                 return StatusCode(500, new { message = "Error exporting occupancy report" });
+            }
+        }
+
+        // GET: api/reports/maintenance/export
+        [HttpGet("maintenance/export")]
+        [Authorize(Roles = "Admin,Staff")]
+        public async Task<IActionResult> ExportMaintenanceReport(
+            [FromQuery] DateTime startDate,
+            [FromQuery] DateTime endDate)
+        {
+            try
+            {
+                var data = await _reportingService.GetMaintenanceExportDataAsync(startDate, endDate);
+
+                var csv = new StringBuilder();
+                csv.AppendLine("Request ID,Unit Number,Issue Type,Priority,Status,Reported Date");
+
+                foreach (var item in data)
+                {
+                    csv.AppendLine($"{item.RequestId},{item.UnitNumber},{item.IssueType},{item.Priority},{item.Status},{item.ReportedDate:yyyy-MM-dd}");
+                }
+
+                return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"maintenance_report_{DateTime.Now:yyyyMMdd}.csv");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error exporting maintenance report");
+                return StatusCode(500, new { message = "Error exporting maintenance report" });
             }
         }
     }

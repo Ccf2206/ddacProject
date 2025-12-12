@@ -3,11 +3,13 @@ import Navbar from '../../components/Navbar';
 import PropertyForm from '../../components/PropertyForm';
 import BuildingForm from '../../components/BuildingForm';
 import ConfirmModal from '../../components/ConfirmModal';
+import SearchBar from '../../components/SearchBar';
 import { propertiesAPI, buildingsAPI } from '../../services/api';
 
 function PropertiesPage() {
     const [properties, setProperties] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
     const [showPropertyForm, setShowPropertyForm] = useState(false);
     const [showBuildingForm, setShowBuildingForm] = useState(false);
     const [editingProperty, setEditingProperty] = useState(null);
@@ -53,7 +55,8 @@ function PropertiesPage() {
             fetchProperties();
         } catch (error) {
             console.error('Error saving property:', error);
-            alert('Error: ' + (error.response?.data?.message || error.message));
+            // Re-throw so PropertyForm can display the error inline
+            throw error;
         }
     };
 
@@ -109,23 +112,46 @@ function PropertiesPage() {
         }
     };
 
+    // Filter properties based on search term
+    const filteredProperties = properties.filter(property =>
+        property.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        property.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        property.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        property.postcode?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     return (
         <div className="min-h-screen bg-gray-50">
             <Navbar />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="flex justify-between items-center mb-8">
+                <div className="flex justify-between items-center mb-6">
                     <h2 className="text-3xl font-bold text-gray-800">Properties Management</h2>
                     <button onClick={handleCreateProperty} className="btn btn-primary">
                         + New Property
                     </button>
                 </div>
 
+                {/* Search Bar */}
+                <div className="mb-6">
+                    <SearchBar
+                        value={searchTerm}
+                        onChange={setSearchTerm}
+                        placeholder="Search properties by name, address, city, or postcode..."
+                    />
+                </div>
+
                 {loading ? (
                     <p>Loading properties...</p>
                 ) : (
-                    <div className="space-y-6">
-                        {properties.map((property) => (
+                    <>
+                        {filteredProperties.length > 0 ? (
+                            <>
+                                <div className="mb-4 text-sm text-gray-600">
+                                    Showing {filteredProperties.length} of {properties.length} properties
+                                </div>
+                                <div className="space-y-6">
+                                    {filteredProperties.map((property) => (
                             <div key={property.propertyId} className="card">
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
@@ -227,6 +253,13 @@ function PropertiesPage() {
                             </div>
                         ))}
                     </div>
+                            </>
+                        ) : (
+                            <div className="card text-center py-12">
+                                <p className="text-gray-500">No properties match your search</p>
+                            </div>
+                        )}
+                    </>
                 )}
 
                 {properties.length === 0 && !loading && (

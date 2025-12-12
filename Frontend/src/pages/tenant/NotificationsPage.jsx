@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { notificationsAPI } from '../../services/api';
 import Navbar from '../../components/Navbar';
 
 export default function NotificationsPage() {
@@ -16,10 +16,7 @@ export default function NotificationsPage() {
     const fetchNotifications = async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/notifications', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await notificationsAPI.getAll();
             setNotifications(response.data);
             setError('');
         } catch (err) {
@@ -32,13 +29,7 @@ export default function NotificationsPage() {
 
     const markAsRead = async (notificationId) => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.put(
-                `http://localhost:5000/api/notifications/${notificationId}/read`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-
+            await notificationsAPI.markAsRead(notificationId);
             setNotifications(notifications.map(n =>
                 n.notificationId === notificationId ? { ...n, isRead: true } : n
             ));
@@ -49,19 +40,7 @@ export default function NotificationsPage() {
 
     const markAllAsRead = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const unreadNotifications = notifications.filter(n => !n.isRead);
-
-            await Promise.all(
-                unreadNotifications.map(n =>
-                    axios.put(
-                        `http://localhost:5000/api/notifications/${n.notificationId}/read`,
-                        {},
-                        { headers: { Authorization: `Bearer ${token}` } }
-                    )
-                )
-            );
-
+            await notificationsAPI.markAllAsRead();
             setNotifications(notifications.map(n => ({ ...n, isRead: true })));
         } catch (err) {
             console.error('Error marking all as read:', err);
@@ -70,14 +49,11 @@ export default function NotificationsPage() {
 
     const deleteNotification = async (notificationId) => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.delete(`http://localhost:5000/api/notifications/${notificationId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
+            await notificationsAPI.delete(notificationId);
             setNotifications(notifications.filter(n => n.notificationId !== notificationId));
         } catch (err) {
             console.error('Error deleting notification:', err);
+            setError('Failed to delete notification');
         }
     };
 
@@ -136,8 +112,13 @@ export default function NotificationsPage() {
                         {notifications.map((notification) => (
                             <div
                                 key={notification.notificationId}
-                                className={`bg-white rounded-lg shadow p-4 ${!notification.isRead ? 'border-l-4 border-blue-500' : ''
+                                className={`bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-lg transition ${!notification.isRead ? 'border-l-4 border-blue-500' : ''
                                     }`}
+                                onClick={() => {
+                                    if (!notification.isRead) {
+                                        markAsRead(notification.notificationId);
+                                    }
+                                }}
                             >
                                 <div className="flex justify-between items-start">
                                     <div className="flex-1">
@@ -160,7 +141,7 @@ export default function NotificationsPage() {
                                             {notification.message}
                                         </p>
                                     </div>
-                                    <div className="flex gap-2 ml-4">
+                                    <div className="flex gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
                                         {!notification.isRead && (
                                             <button
                                                 onClick={() => markAsRead(notification.notificationId)}

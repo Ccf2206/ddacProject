@@ -73,5 +73,25 @@ namespace ddacProject.Controllers
 
             return Ok(new { message = $"{notifications.Count} notifications marked as read" });
         }
+
+        // DELETE: api/notifications/5
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteNotification(int id)
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+            var notification = await _context.Notifications
+                .FirstOrDefaultAsync(n => n.NotificationId == id && n.UserId == userId);
+
+            if (notification == null)
+            {
+                return NotFound(new { message = "Notification not found" });
+            }
+
+            _context.Notifications.Remove(notification);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Notification deleted successfully" });
+        }
     }
 }

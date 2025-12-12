@@ -44,3 +44,9 @@ wwwroot/uploads/*
 *.temp
 *.swp
 *~
+
+node_modules/
+bin/
+obj/
+.vs/
+.DS_Store

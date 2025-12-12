@@ -109,6 +109,94 @@ namespace ddacProject.Controllers
             return Ok(message);
         }
 
+        // GET: api/messages/5/details
+        [HttpGet("{id}/details")]
+        public async Task<ActionResult<MessageDetailsDto>> GetMessageDetails(int id)
+        {
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+            
+            // Only Admin/Staff can view message details
+            if (userRole != "Admin" && userRole != "Staff")
+            {
+                return Forbid();
+            }
+
+            // Get all messages with the same title and approximate sent time (grouped messages)
+            var firstMessage = await _context.Messages
+                .Include(m => m.Sender)
+                .FirstOrDefaultAsync(m => m.MessageId == id);
+
+            if (firstMessage == null)
+            {
+                return NotFound(new { message = "Message not found" });
+            }
+
+            // Get all related messages (same title, similar timestamp)
+            var timeWindow = firstMessage.SentAt.AddMinutes(-1);
+            var relatedMessages = await _context.Messages
+                .Include(m => m.Sender)
+                .Where(m => m.Title == firstMessage.Title && 
+                           m.SentAt >= timeWindow && 
+                           m.SentAt <= firstMessage.SentAt.AddMinutes(1))
+                .ToListAsync();
+
+            // Get recipient details
+            var recipientIds = relatedMessages.Select(m => m.RecipientId).Distinct().ToList();
+            var recipients = await _context.Users
+                .Where(u => recipientIds.Contains(u.UserId))
+                .Join(_context.Tenants,
+                    u => u.UserId,
+                    t => t.UserId,
+                    (u, t) => new { User = u, Tenant = t })
+                .Select(x => new RecipientDetailDto
+                {
+                    TenantName = x.User.Name,
+                    TenantEmail = x.User.Email,
+                    UnitNumber = x.Tenant.CurrentUnit != null ? x.Tenant.CurrentUnit.UnitNumber : "N/A"
+                })
+                .OrderBy(r => r.TenantName)
+                .ToListAsync();
+
+            // Get property/building info if applicable
+            string? propertyName = null;
+            string? buildingName = null;
+
+            if (firstMessage.RecipientType == "Property" || firstMessage.RecipientType == "Building")
+            {
+                var firstRecipient = recipientIds.FirstOrDefault();
+                if (firstRecipient.HasValue)
+                {
+                    var tenantUnit = await _context.Tenants
+                        .Include(t => t.CurrentUnit)
+                            .ThenInclude(u => u.Floor)
+                                .ThenInclude(f => f.Building)
+                                    .ThenInclude(b => b.Property)
+                        .FirstOrDefaultAsync(t => t.UserId == firstRecipient.Value);
+
+                    if (tenantUnit?.CurrentUnit != null)
+                    {
+                        buildingName = tenantUnit.CurrentUnit.Floor.Building.Name;
+                        propertyName = tenantUnit.CurrentUnit.Floor.Building.Property.Name;
+                    }
+                }
+            }
+
+            var details = new MessageDetailsDto
+            {
+                MessageId = firstMessage.MessageId,
+                RecipientType = firstMessage.RecipientType,
+                Title = firstMessage.Title,
+                Body = firstMessage.Body,
+                SentAt = firstMessage.SentAt,
+                SenderName = firstMessage.Sender.Name,
+                PropertyName = propertyName,
+                BuildingName = buildingName,
+                Recipients = recipients
+            };
+
+            return Ok(details);
+        }
+
         // POST: api/messages
         [Authorize(Roles = "Admin,Staff")]
         [HttpPost]
@@ -146,7 +234,7 @@ namespace ddacProject.Controllers
                     _context.Messages.Add(new Message
                     {
                         SenderId = userId,
-                        RecipientType = "Individual",
+                        RecipientType = "Broadcast",
                         RecipientId = tenant.UserId,
                         Title = dto.Title,
                         Body = dto.Body,
@@ -171,7 +259,7 @@ namespace ddacProject.Controllers
                     _context.Messages.Add(new Message
                     {
                         SenderId = userId,
-                        RecipientType = "Individual",
+                        RecipientType = "Property",
                         RecipientId = tenant.UserId,
                         Title = dto.Title,
                         Body = dto.Body,
@@ -195,7 +283,7 @@ namespace ddacProject.Controllers
                     _context.Messages.Add(new Message
                     {
                         SenderId = userId,
-                        RecipientType = "Individual",
+                        RecipientType = "Building",
                         RecipientId = tenant.UserId,
                         Title = dto.Title,
                         Body = dto.Body,
@@ -232,6 +320,26 @@ namespace ddacProject.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Message marked as read" });
+        }
+
+        // PUT: api/messages/mark-all-read
+        [HttpPut("mark-all-read")]
+        public async Task<IActionResult> MarkAllAsRead()
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+            var unreadMessages = await _context.Messages
+                .Where(m => m.RecipientId == userId && !m.IsRead)
+                .ToListAsync();
+
+            foreach (var message in unreadMessages)
+            {
+                message.IsRead = true;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = $"{unreadMessages.Count} message(s) marked as read" });
         }
 
         // DELETE: api/messages/5

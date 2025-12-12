@@ -66,9 +66,4 @@ namespace ddacProject.DTOs
     }
 
     // User profile update DTO
-    public class UpdateOwnProfileDto
-    {
-        public string? Phone { get; set; }
-        public string? Email { get; set; }
-    }
 }

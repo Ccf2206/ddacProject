@@ -9,6 +9,8 @@ function PropertyForm({ property, onSubmit, onCancel }) {
         description: '',
         buildingCount: 1
     });
+    const [error, setError] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (property) {
@@ -23,9 +25,76 @@ function PropertyForm({ property, onSubmit, onCancel }) {
         }
     }, [property]);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        onSubmit(formData);
+        setError(null);
+        setIsSubmitting(true);
+
+        // Trim all inputs and validate
+        const trimmedData = {
+            name: formData.name.trim(),
+            address: formData.address.trim(),
+            city: formData.city.trim(),
+            postcode: formData.postcode.trim(),
+            description: formData.description.trim(),
+            buildingCount: formData.buildingCount
+        };
+
+        // Validate property name
+        if (!trimmedData.name) {
+            setError('Property name cannot be empty or contain only spaces');
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Validate address
+        if (!trimmedData.address) {
+            setError('Address cannot be empty or contain only spaces');
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Validate city - text only
+        if (!trimmedData.city) {
+            setError('City cannot be empty or contain only spaces');
+            setIsSubmitting(false);
+            return;
+        }
+        if (!/^[a-zA-Z\s]+$/.test(trimmedData.city)) {
+            setError('City should only contain letters and spaces');
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Validate postcode - integers only
+        if (!trimmedData.postcode) {
+            setError('Postcode cannot be empty or contain only spaces');
+            setIsSubmitting(false);
+            return;
+        }
+        if (!/^\d+$/.test(trimmedData.postcode)) {
+            setError('Postcode should only contain numbers');
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Validate description if provided - cannot be only whitespace
+        if (formData.description && !trimmedData.description) {
+            setError('Description cannot contain only spaces');
+            setIsSubmitting(false);
+            return;
+        }
+
+        try {
+            await onSubmit(trimmedData);
+            // Form will close on success (handled by parent component)
+        } catch (err) {
+            // Display error inline
+            const errorMessage = err.response?.data?.message || err.message || 'An error occurred';
+            setError(errorMessage);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -35,6 +104,12 @@ function PropertyForm({ property, onSubmit, onCancel }) {
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">
                         {property ? 'Edit Property' : 'Create New Property'}
                     </h3>
+
+                    {error && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+                            {error}
+                        </div>
+                    )}
 
                     <form onSubmit={handleSubmit}>
                         <div className="grid grid-cols-2 gap-4">
@@ -46,6 +121,7 @@ function PropertyForm({ property, onSubmit, onCancel }) {
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     className="input"
                                     required
+                                    disabled={isSubmitting}
                                 />
                             </div>
 
@@ -57,6 +133,7 @@ function PropertyForm({ property, onSubmit, onCancel }) {
                                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                                     className="input"
                                     required
+                                    disabled={isSubmitting}
                                 />
                             </div>
 
@@ -68,6 +145,7 @@ function PropertyForm({ property, onSubmit, onCancel }) {
                                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                                     className="input"
                                     required
+                                    disabled={isSubmitting}
                                 />
                             </div>
 
@@ -79,6 +157,7 @@ function PropertyForm({ property, onSubmit, onCancel }) {
                                     onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
                                     className="input"
                                     required
+                                    disabled={isSubmitting}
                                 />
                             </div>
 
@@ -89,6 +168,7 @@ function PropertyForm({ property, onSubmit, onCancel }) {
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                     className="input"
                                     rows="3"
+                                    disabled={isSubmitting}
                                 />
                             </div>
 
@@ -96,12 +176,18 @@ function PropertyForm({ property, onSubmit, onCancel }) {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Number of Buildings *</label>
                                 <input
                                     type="number"
-                                    min="1"
+                                    min={property?.buildings?.length || 1}
                                     value={formData.buildingCount}
                                     onChange={(e) => setFormData({ ...formData, buildingCount: parseInt(e.target.value) })}
                                     className="input"
                                     required
+                                    disabled={isSubmitting}
                                 />
+                                {property && property.buildings && property.buildings.length > 0 && (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Minimum: {property.buildings.length} (current number of existing buildings)
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -110,14 +196,16 @@ function PropertyForm({ property, onSubmit, onCancel }) {
                                 type="button"
                                 onClick={onCancel}
                                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                                disabled={isSubmitting}
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
                                 className="btn btn-primary"
+                                disabled={isSubmitting}
                             >
-                                {property ? 'Update' : 'Create'} Property
+                                {isSubmitting ? 'Saving...' : property ? 'Update' : 'Create'} Property
                             </button>
                         </div>
                     </form>

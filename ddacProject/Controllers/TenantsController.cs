@@ -69,6 +69,13 @@ namespace ddacProject.Controllers
                 return BadRequest(new { message = "Email already exists" });
             }
 
+            // Check if IC number already exists
+            var existingIC = await _context.Tenants.FirstOrDefaultAsync(t => t.ICNumber == dto.ICNumber);
+            if (existingIC != null)
+            {
+                return BadRequest(new { message = "IC Number already exists" });
+            }
+
             // Get Tenant role
             var tenantRole = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == "Tenant");
             if (tenantRole == null)
@@ -104,14 +111,52 @@ namespace ddacProject.Controllers
             };
 
             _context.Tenants.Add(tenant);
+            await _context.SaveChangesAsync(); // Save to get TenantId
             
-            // Update unit status if assigned
+            // Update unit status and create lease if assigned
             if (dto.UnitId.HasValue)
             {
                 var unit = await _context.Units.FindAsync(dto.UnitId.Value);
                 if (unit != null)
                 {
                     unit.Status = "Occupied";
+                }
+                
+                // Auto-create lease if dates and amounts provided
+                if (dto.LeaseStartDate.HasValue && dto.LeaseEndDate.HasValue && 
+                    dto.RentAmount.HasValue && dto.DepositAmount.HasValue)
+                {
+                    var lease = new Lease
+                    {
+                        TenantId = tenant.TenantId,
+                        UnitId = dto.UnitId.Value,
+                        RentAmount = dto.RentAmount.Value,
+                        DepositAmount = dto.DepositAmount.Value,
+                        StartDate = dto.LeaseStartDate.Value,
+                        EndDate = dto.LeaseEndDate.Value,
+                        PaymentCycle = "Monthly",
+                        Status = "Active",
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _context.Leases.Add(lease);
+                    await _context.SaveChangesAsync(); // Save to get LeaseId
+                    
+                    // Generate monthly invoices
+                    var currentDate = lease.StartDate;
+                    while (currentDate < lease.EndDate)
+                    {
+                        var invoice = new Invoice
+                        {
+                            LeaseId = lease.LeaseId,
+                            Amount = lease.RentAmount,
+                            IssueDate = currentDate,
+                            DueDate = new DateTime(currentDate.Year, currentDate.Month, 1).AddMonths(1),
+                            Status = "Pending",
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        _context.Invoices.Add(invoice);
+                        currentDate = currentDate.AddMonths(1);
+                    }
                 }
             }
             
@@ -136,6 +181,26 @@ namespace ddacProject.Controllers
             if (existingTenant == null)
             {
                 return NotFound(new { message = "Tenant not found" });
+            }
+
+            // Check if email is being changed and if new email already exists
+            if (dto.Email != existingTenant.User.Email)
+            {
+                var emailExists = await _context.Users.AnyAsync(u => u.Email == dto.Email && u.UserId != existingTenant.UserId);
+                if (emailExists)
+                {
+                    return BadRequest(new { message = "Email already exists. Please use a different email." });
+                }
+            }
+
+            // Check if IC number is being changed and if new IC already exists
+            if (dto.ICNumber != existingTenant.ICNumber)
+            {
+                var icExists = await _context.Tenants.AnyAsync(t => t.ICNumber == dto.ICNumber && t.TenantId != id);
+                if (icExists)
+                {
+                    return BadRequest(new { message = "IC Number already exists. Please use a different IC Number." });
+                }
             }
 
             var oldTenant = new { 
@@ -197,7 +262,11 @@ namespace ddacProject.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTenant(int id)
         {
-            var tenant = await _context.Tenants.Include(t => t.Leases).FirstOrDefaultAsync(t => t.TenantId == id);
+            var tenant = await _context.Tenants
+                .Include(t => t.User)
+                .Include(t => t.Leases)
+                .FirstOrDefaultAsync(t => t.TenantId == id);
+            
             if (tenant == null)
             {
                 return NotFound(new { message = "Tenant not found" });
@@ -209,14 +278,37 @@ namespace ddacProject.Controllers
                 return BadRequest(new { message = "Cannot delete tenant with active leases" });
             }
 
+            // Free up the unit if tenant is assigned to one
+            if (tenant.CurrentUnitId.HasValue)
+            {
+                var unit = await _context.Units.FindAsync(tenant.CurrentUnitId.Value);
+                if (unit != null)
+                {
+                    unit.Status = "Available";
+                }
+            }
+
+            // Get user for logging before deletion
+            var userId = tenant.UserId;
+            var user = tenant.User;
+
+            // Hard delete: Remove tenant first (due to foreign key)
             _context.Tenants.Remove(tenant);
             await _context.SaveChangesAsync();
 
-            // Log audit
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            await _auditService.LogActionAsync(userId, "DELETE", "Tenants", tenant, null);
+            // Then remove the associated user account (this makes email available again)
+            if (user != null)
+            {
+                _context.Users.Remove(user);
+                await _context.SaveChangesAsync();
+            }
 
-            return Ok(new { message = "Tenant deleted successfully" });
+            // Log audit
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            await _auditService.LogActionAsync(currentUserId, "DELETE", "Tenants", 
+                new { TenantId = id, Email = user?.Email, Name = user?.Name }, null);
+
+            return Ok(new { message = "Tenant and associated user account deleted successfully" });
         }
     }
 }

@@ -25,4 +25,24 @@ namespace ddacProject.DTOs
         public DateTime SentAt { get; set; }
         public bool IsRead { get; set; }
     }
+
+    public class MessageDetailsDto
+    {
+        public int MessageId { get; set; }
+        public string RecipientType { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string Body { get; set; } = string.Empty;
+        public DateTime SentAt { get; set; }
+        public string SenderName { get; set; } = string.Empty;
+        public string? PropertyName { get; set; }
+        public string? BuildingName { get; set; }
+        public List<RecipientDetailDto> Recipients { get; set; } = new List<RecipientDetailDto>();
+    }
+
+    public class RecipientDetailDto
+    {
+        public string TenantName { get; set; } = string.Empty;
+        public string TenantEmail { get; set; } = string.Empty;
+        public string? UnitNumber { get; set; }
+    }
 }

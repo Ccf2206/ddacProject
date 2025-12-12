@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import DataTable from '../../components/DataTable';
+import SearchBar from '../../components/SearchBar';
 import { auditLogsAPI, usersAPI } from '../../services/api';
 
 function AuditLogsPage() {
     const [logs, setLogs] = useState([]);
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
     const [filters, setFilters] = useState({
         userId: '',
         actionType: '',
@@ -89,7 +91,16 @@ function AuditLogsPage() {
 
                 {/* Filters */}
                 <div className="card mb-6">
-                    <h3 className="text-lg font-semibold mb-4">Filters</h3>
+                    <h3 className="text-lg font-semibold mb-4">Search & Filters</h3>
+                    
+                    <div className="mb-4">
+                        <SearchBar
+                            value={searchTerm}
+                            onChange={setSearchTerm}
+                            placeholder="Search by user, action, table, or record ID..."
+                        />
+                    </div>
+
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">User</label>
@@ -163,7 +174,12 @@ function AuditLogsPage() {
                 <div className="card">
                     <div className="flex justify-between items-center mb-4">
                         <p className="text-sm text-gray-600">
-                            Showing {((pagination.page - 1) * pagination.pageSize) + 1} - {Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total} logs
+                            Showing {logs.filter(log =>
+                                log.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                log.actionType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                log.tableName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                log.recordId?.toString().includes(searchTerm)
+                            ).length} of {logs.length} logs (Total in database: {pagination.total})
                         </p>
                     </div>
 
@@ -171,7 +187,15 @@ function AuditLogsPage() {
                         <p>Loading audit logs...</p>
                     ) : (
                         <>
-                            <DataTable columns={columns} data={logs} />
+                            <DataTable 
+                                columns={columns} 
+                                data={logs.filter(log =>
+                                    log.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    log.actionType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    log.tableName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    log.recordId?.toString().includes(searchTerm)
+                                )} 
+                            />
 
                             {/* Pagination */}
                             {pagination.totalPages > 1 && (

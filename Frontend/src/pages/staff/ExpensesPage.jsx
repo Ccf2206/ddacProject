@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import DataTable from '../../components/DataTable';
 import ConfirmModal from '../../components/ConfirmModal';
+import SearchBar from '../../components/SearchBar';
 import { propertiesAPI, expensesAPI } from '../../services/api';
 
 function ExpensesPage() {
     const [expenses, setExpenses] = useState([]);
     const [properties, setProperties] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({
         PropertyId: '',
@@ -81,16 +83,33 @@ function ExpensesPage() {
         }
     ];
 
+    // Filter expenses based on search term
+    const filteredExpenses = expenses.filter(expense =>
+        expense.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        expense.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        expense.property?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        expense.amount?.toString().includes(searchTerm)
+    );
+
     return (
         <div className="min-h-screen bg-gray-50">
             <Navbar />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="flex justify-between items-center mb-8">
+                <div className="flex justify-between items-center mb-6">
                     <h2 className="text-3xl font-bold text-gray-800">Expenses Management</h2>
                     <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
                         {showForm ? 'Cancel' : '+ Record Expense'}
                     </button>
+                </div>
+
+                {/* Search Bar */}
+                <div className="mb-6">
+                    <SearchBar
+                        value={searchTerm}
+                        onChange={setSearchTerm}
+                        placeholder="Search expenses by category, description, property, or amount..."
+                    />
                 </div>
 
                 {showForm && (
@@ -177,7 +196,12 @@ function ExpensesPage() {
                             </button>
                         </div>
                     ) : (
-                        <DataTable columns={columns} data={expenses} />
+                        <>
+                            <div className="mb-4 text-sm text-gray-600">
+                                Showing {filteredExpenses.length} of {expenses.length} expenses
+                            </div>
+                            <DataTable columns={columns} data={filteredExpenses} />
+                        </>
                     )}
                 </div>
             </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
+import SearchBar from '../../components/SearchBar';
 import axios from 'axios';
 import { FaCheckCircle, FaTimes, FaCheck } from 'react-icons/fa';
 
@@ -10,6 +11,7 @@ function ApprovalsPage() {
     const [selectedApproval, setSelectedApproval] = useState(null);
     const [showReviewModal, setShowReviewModal] = useState(false);
     const [adminNotes, setAdminNotes] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         fetchApprovals();
@@ -21,7 +23,7 @@ function ApprovalsPage() {
             const token = localStorage.getItem('token');
             const params = filter !== 'All' ? { status: filter } : {};
 
-            const response = await axios.get('http://localhost:5000/api/approvals', {
+            const response = await axios.get('http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/approvals', {
                 params,
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -39,7 +41,7 @@ function ApprovalsPage() {
         try {
             const token = localStorage.getItem('token');
             await axios.put(
-                `http://localhost:5000/api/approvals/${selectedApproval.approvalId}/approve`,
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/approvals/${selectedApproval.approvalId}/approve`,
                 { adminNotes },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -65,7 +67,7 @@ function ApprovalsPage() {
         try {
             const token = localStorage.getItem('token');
             await axios.put(
-                `http://localhost:5000/api/approvals/${selectedApproval.approvalId}/reject`,
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/approvals/${selectedApproval.approvalId}/reject`,
                 { adminNotes },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -158,11 +160,37 @@ function ApprovalsPage() {
                         {filter === 'All' ? 'All Approvals' : `${filter} Approvals`}
                     </h3>
 
+                    <div className="mb-4">
+                        <SearchBar
+                            value={searchTerm}
+                            onChange={setSearchTerm}
+                            placeholder="Search by staff name, action type, table, or status..."
+                        />
+                        <p className="text-sm text-gray-600 mt-2">
+                            Showing {approvals.filter(approval =>
+                                (approval.staffName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    approval.actionType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    approval.tableName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    approval.status?.toLowerCase().includes(searchTerm.toLowerCase()))
+                            ).length} of {approvals.length} approvals
+                        </p>
+                    </div>
+
                     {loading ? (
                         <p>Loading approvals...</p>
-                    ) : approvals.length > 0 ? (
+                    ) : approvals.filter(approval =>
+                        (approval.staffName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            approval.actionType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            approval.tableName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            approval.status?.toLowerCase().includes(searchTerm.toLowerCase()))
+                    ).length > 0 ? (
                         <div className="space-y-4">
-                            {approvals.map((approval) => (
+                            {approvals.filter(approval =>
+                                (approval.staffName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    approval.actionType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    approval.tableName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    approval.status?.toLowerCase().includes(searchTerm.toLowerCase()))
+                            ).map((approval) => (
                                 <div
                                     key={approval.approvalId}
                                     className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition"

@@ -15,7 +15,7 @@ export default function TenantLease() {
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/leases', {
+            const response = await axios.get('http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/leases', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             // Get the active lease for the tenant

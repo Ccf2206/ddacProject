@@ -45,7 +45,7 @@ export default function TenantProfile() {
         try {
             const token = localStorage.getItem('token');
             await axios.put(
-                `http://localhost:5000/api/users/${user.userId}`,
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/users/me`,
                 {
                     name: formData.name,
                     email: formData.email,
@@ -55,6 +55,9 @@ export default function TenantProfile() {
             );
 
             alert('Profile updated successfully!');
+            // Update local user data
+            const updatedUser = { ...user, name: formData.name, email: formData.email, phone: formData.phone };
+            localStorage.setItem('user', JSON.stringify(updatedUser));
         } catch (error) {
             console.error('Error updating profile:', error);
             alert('Error: ' + (error.response?.data?.message || error.message));
@@ -80,7 +83,7 @@ export default function TenantProfile() {
         try {
             const token = localStorage.getItem('token');
             await axios.put(
-                `http://localhost:5000/api/users/${user.userId}/password`,
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/users/me/password`,
                 {
                     currentPassword: passwordData.currentPassword,
                     newPassword: passwordData.newPassword

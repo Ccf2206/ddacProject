@@ -5,11 +5,23 @@ namespace ddacProject.DTOs
         public int FloorId { get; set; }
         public string UnitNumber { get; set; } = string.Empty;
         public string Type { get; set; } = string.Empty;
-        public decimal Size { get; set; }
+        public int Size { get; set; }
         public decimal RentPrice { get; set; }
         public decimal DepositAmount { get; set; }
         public int MaxTenants { get; set; }
         public string Status { get; set; } = "Available";
+        public string? Notes { get; set; }
+    }
+
+    public class UpdateUnitDto
+    {
+        public string UnitNumber { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public int Size { get; set; }
+        public decimal RentPrice { get; set; }
+        public decimal DepositAmount { get; set; }
+        public int MaxTenants { get; set; }
+        public string Status { get; set; } = string.Empty;
         public string? Notes { get; set; }
     }
 }

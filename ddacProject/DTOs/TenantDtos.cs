@@ -14,6 +14,12 @@ namespace ddacProject.DTOs
         public string? EmergencyContact { get; set; }
         public DateTime? MoveInDate { get; set; }
         public int? UnitId { get; set; }
+        
+        // Lease creation fields (optional, for automatic lease generation)
+        public DateTime? LeaseStartDate { get; set; }
+        public DateTime? LeaseEndDate { get; set; }
+        public decimal? RentAmount { get; set; }
+        public decimal? DepositAmount { get; set; }
     }
 
     public class UpdateTenantDto

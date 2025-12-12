@@ -56,7 +56,12 @@ function UnitForm({ unit, onSubmit, onCancel }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSubmit(formData);
+        // Trim notes to treat whitespace-only as empty
+        const submissionData = {
+            ...formData,
+            notes: formData.notes?.trim() || null
+        };
+        onSubmit(submissionData);
     };
 
     return (
@@ -69,6 +74,20 @@ function UnitForm({ unit, onSubmit, onCancel }) {
 
                     <form onSubmit={handleSubmit}>
                         <div className="grid grid-cols-2 gap-4">
+                            {unit && (
+                                <div className="col-span-2 bg-gray-50 p-3 rounded border border-gray-200">
+                                    <p className="text-sm text-gray-600">
+                                        <span className="font-medium">Property:</span> {unit.floor?.building?.property?.name || 'N/A'}
+                                    </p>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                        <span className="font-medium">Building:</span> {unit.floor?.building?.name || 'N/A'}
+                                    </p>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                        <span className="font-medium">Floor:</span> {unit.floor?.floorNumber || 'N/A'}
+                                    </p>
+                                </div>
+                            )}
+
                             {!unit && (
                                 <>
                                     <div className="col-span-2">

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
+import SearchBar from '../../components/SearchBar';
 import axios from 'axios';
 import { FaFileContract, FaCheckCircle, FaTimes } from 'react-icons/fa';
 
@@ -8,6 +9,7 @@ function LeaseTemplatesPage() {
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
     const [formData, setFormData] = useState({
         templateName: '',
         templateContent: '',
@@ -23,7 +25,7 @@ function LeaseTemplatesPage() {
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/leasetemplates', {
+            const response = await axios.get('http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/leasetemplates', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setTemplates(response.data);
@@ -42,7 +44,7 @@ function LeaseTemplatesPage() {
             if (editingTemplate) {
                 // Update existing template
                 await axios.put(
-                    `http://localhost:5000/api/leasetemplates/${editingTemplate.templateId}`,
+                    `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/leasetemplates/${editingTemplate.templateId}`,
                     formData,
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
@@ -50,7 +52,7 @@ function LeaseTemplatesPage() {
             } else {
                 // Create new template
                 await axios.post(
-                    'http://localhost:5000/api/leasetemplates',
+                    'http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/leasetemplates',
                     formData,
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
@@ -81,7 +83,7 @@ function LeaseTemplatesPage() {
 
         try {
             const token = localStorage.getItem('token');
-            await axios.delete(`http://localhost:5000/api/leasetemplates/${templateId}`, {
+            await axios.delete(`http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/leasetemplates/${templateId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             alert('Template deactivated successfully!');
@@ -105,6 +107,18 @@ function LeaseTemplatesPage() {
 
     const activeTemplates = templates.filter(t => t.isActive);
     const inactiveTemplates = templates.filter(t => !t.isActive);
+
+    const filteredActiveTemplates = activeTemplates.filter(template =>
+        template.templateName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        template.templateContent?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        template.templateVariables?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const filteredInactiveTemplates = inactiveTemplates.filter(template =>
+        template.templateName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        template.templateContent?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        template.templateVariables?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -211,11 +225,23 @@ function LeaseTemplatesPage() {
                 {/* Active Templates */}
                 <div className="card mb-6">
                     <h3 className="text-xl font-semibold mb-4 flex items-center gap-2"><FaCheckCircle /> Active Templates ({activeTemplates.length})</h3>
+                    
+                    <div className="mb-4">
+                        <SearchBar
+                            value={searchTerm}
+                            onChange={setSearchTerm}
+                            placeholder="Search templates by name, content, or variables..."
+                        />
+                        <p className="text-sm text-gray-600 mt-2">
+                            Showing {filteredActiveTemplates.length} of {activeTemplates.length} active templates
+                        </p>
+                    </div>
+
                     {loading ? (
                         <p>Loading templates...</p>
-                    ) : activeTemplates.length > 0 ? (
+                    ) : filteredActiveTemplates.length > 0 ? (
                         <div className="space-y-4">
-                            {activeTemplates.map((template) => (
+                            {filteredActiveTemplates.map((template) => (
                                 <div
                                     key={template.templateId}
                                     className="border border-gray-200 rounded-lg p-4"
@@ -272,8 +298,11 @@ function LeaseTemplatesPage() {
                         <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
                             <FaTimes /> Inactive Templates ({inactiveTemplates.length})
                         </h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Showing {filteredInactiveTemplates.length} of {inactiveTemplates.length} inactive templates
+                        </p>
                         <div className="space-y-3">
-                            {inactiveTemplates.map((template) => (
+                            {filteredInactiveTemplates.map((template) => (
                                 <div
                                     key={template.templateId}
                                     className="p-3 bg-gray-50 rounded"

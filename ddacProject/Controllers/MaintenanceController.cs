@@ -34,15 +34,16 @@ namespace ddacProject.Controllers
                     .ThenInclude(t => t.User)
                 .Include(m => m.MaintenancePhotos)
                 .Include(m => m.MaintenanceAssignment)
-                    .ThenInclude(a => a!.Technician)
+                    .ThenInclude(a => a.Technician)
                         .ThenInclude(t => t.User)
-                .Include(m => m.MaintenanceUpdates)
+                .AsNoTracking()
+                .AsSplitQuery()
                 .AsQueryable();
 
             // Filter based on role
             if (userRole == "Tenant")
             {
-                var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.UserId == userId);
+                var tenant = await _context.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.UserId == userId);
                 if (tenant == null)
                     return Ok(new List<MaintenanceRequest>());
 
@@ -92,22 +93,44 @@ namespace ddacProject.Controllers
             return Ok(request);
         }
 
-        [Authorize(Roles = "Tenant")]
         [HttpPost]
         public async Task<ActionResult<MaintenanceRequest>> CreateMaintenanceRequest([FromBody] CreateMaintenanceRequestDto dto)
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+            
+            // Admin/Staff can create on behalf of tenant
+            int? tenantId = dto.TenantId;
+            if (userRole == "Tenant")
+            {
+                // Renamed to 'currentTenant' to avoid conflict
+                var currentTenant = await _context.Tenants
+                    .Include(t => t.User)
+                    .FirstOrDefaultAsync(t => t.UserId == userId);
+
+                if (currentTenant == null)
+                {
+                    return BadRequest(new { message = "User is not a tenant" });
+                }
+                tenantId = currentTenant.TenantId;
+            }
+            else if (userRole == "Admin" || userRole == "Staff")
+            {
+                // Admin/Staff must provide TenantId
+                if (!tenantId.HasValue || tenantId.Value == 0)
+                {
+                    return BadRequest(new { message = "TenantId is required for Admin/Staff" });
+                }
+            }
+            
             var tenant = await _context.Tenants
                 .Include(t => t.User)
-                .FirstOrDefaultAsync(t => t.UserId == userId);
+                .FirstOrDefaultAsync(t => t.TenantId == tenantId);
 
             if (tenant == null)
             {
                 return BadRequest(new { message = "User is not a tenant" });
             }
-
-            // Debug logging
-            Console.WriteLine($"DEBUG: Tenant ID: {tenant.TenantId}, CurrentUnitId: {tenant.CurrentUnitId}, User Email: {tenant.User.Email}");
 
             // Use tenant's current unit if UnitId not provided (treat 0 or null as not provided)
             int? unitId = tenant.CurrentUnitId;
@@ -116,11 +139,8 @@ namespace ddacProject.Controllers
                 unitId = dto.UnitId;
             }
             
-            Console.WriteLine($"DEBUG: dto.UnitId = {dto.UnitId}, Calculated unitId = {unitId}");
-            
             if (unitId == null || unitId == 0)
             {
-                Console.WriteLine("DEBUG: Unit ID is null or 0 - returning error");
                 return BadRequest(new { 
                     message = "You are not currently assigned to any unit. Please contact management.",
                     debug = new {
@@ -177,12 +197,9 @@ namespace ddacProject.Controllers
         [HttpPut("{id}/assign")]
         public async Task<IActionResult> AssignTechnician(int id, [FromBody] AssignTechnicianDto dto)
         {
-            Console.WriteLine($"DEBUG ASSIGN: Request ID: {id}, TechnicianId from DTO: {dto?.TechnicianId}");
-            
             var request = await _context.MaintenanceRequests.FindAsync(id);
             if (request == null)
             {
-                Console.WriteLine($"DEBUG ASSIGN: Maintenance request {id} not found");
                 return NotFound(new { message = "Maintenance request not found" });
             }
 
@@ -391,10 +408,45 @@ namespace ddacProject.Controllers
 
             return Ok(new { message = "Maintenance request completed and signed off", request });
         }
+
+        // DELETE: api/maintenance/5
+        [Authorize(Roles = "Admin,Staff")]
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteMaintenanceRequest(int id)
+        {
+            var request = await _context.MaintenanceRequests
+                .Include(m => m.MaintenancePhotos)
+                .Include(m => m.MaintenanceAssignment)
+                .Include(m => m.MaintenanceUpdates)
+                .FirstOrDefaultAsync(m => m.MaintenanceRequestId == id);
+
+            if (request == null)
+            {
+                return NotFound(new { message = "Maintenance request not found" });
+            }
+
+            // Remove related photos from filesystem
+            var uploadsFolder = Path.Combine(_environment.WebRootPath, "uploads", "maintenance");
+            foreach (var photo in request.MaintenancePhotos)
+            {
+                var photoPath = Path.Combine(_environment.WebRootPath, photo.PhotoUrl.TrimStart('/'));
+                if (System.IO.File.Exists(photoPath))
+                {
+                    System.IO.File.Delete(photoPath);
+                }
+            }
+
+            // Remove all related records (EF will handle cascade delete for most)
+            _context.MaintenanceRequests.Remove(request);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Maintenance request deleted successfully" });
+        }
     }
 
     public class CreateMaintenanceRequestDto
     {
+        public int? TenantId { get; set; } // Optional, used by Admin/Staff
         public int UnitId { get; set; }
         public string IssueType { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;

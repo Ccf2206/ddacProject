@@ -8,6 +8,11 @@ namespace ddacProject.Services
         Task<FinancialSummaryDto> GetFinancialSummaryAsync(DateTime startDate, DateTime endDate, int? propertyId = null);
         Task<OccupancyStatisticsDto> GetOccupancyStatisticsAsync(int? propertyId = null, int? buildingId = null, int? month = null, int? year = null);
         Task<MaintenanceTrendsDto> GetMaintenanceTrendsAsync(DateTime startDate, DateTime endDate);
+
+        // Export methods
+        Task<List<FinancialExportDto>> GetFinancialExportDataAsync(DateTime startDate, DateTime endDate, int? propertyId = null);
+        Task<List<OccupancyExportDto>> GetOccupancyExportDataAsync(int? propertyId = null);
+        Task<List<MaintenanceExportDto>> GetMaintenanceExportDataAsync(DateTime startDate, DateTime endDate);
     }
 
     public class ReportingService : IReportingService
@@ -223,6 +228,109 @@ namespace ddacProject.Services
                 throw;
             }
         }
+
+        public async Task<List<FinancialExportDto>> GetFinancialExportDataAsync(DateTime startDate, DateTime endDate, int? propertyId = null)
+        {
+            var exportList = new List<FinancialExportDto>();
+
+            // 1. Invoices (income / potential income)
+            var invoicesQuery = _context.Invoices
+                .Include(i => i.Lease)
+                    .ThenInclude(l => l.Unit)
+                .Include(i => i.Lease)
+                    .ThenInclude(l => l.Tenant)
+                        .ThenInclude(t => t.User)
+                .Where(i => i.DueDate >= startDate && i.DueDate <= endDate);
+
+            if (propertyId.HasValue)
+            {
+                invoicesQuery = invoicesQuery.Where(i => i.Lease.Unit.Floor.Building.PropertyId == propertyId.Value);
+            }
+
+            var invoices = await invoicesQuery.ToListAsync();
+            exportList.AddRange(invoices.Select(i => new FinancialExportDto
+            {
+                Date = i.DueDate,
+                Type = "Invoice",
+                Category = "Rent", // Assuming mostly rent, logic can be improved
+                Amount = i.Amount,
+                Status = i.Status, // Paid, Unpaid
+                PayerPayee = i.Lease.Tenant.User.Name
+            }));
+
+            // 2. Expenses
+            var expensesQuery = _context.Expenses
+                .Where(e => e.Date >= startDate && e.Date <= endDate);
+
+             if (propertyId.HasValue)
+            {
+                expensesQuery = expensesQuery.Where(e => e.PropertyId == propertyId.Value);
+            }
+
+            var expenses = await expensesQuery.ToListAsync();
+            exportList.AddRange(expenses.Select(e => new FinancialExportDto
+            {
+                Date = e.Date,
+                Type = "Expense",
+                Category = e.Category,
+                Amount = -e.Amount, // Negative for expense
+                Status = "Paid",
+                PayerPayee = "N/A"
+            }));
+
+            return exportList.OrderBy(x => x.Date).ToList();
+        }
+
+        public async Task<List<OccupancyExportDto>> GetOccupancyExportDataAsync(int? propertyId = null)
+        {
+            var unitsQuery = _context.Units
+                .Include(u => u.Leases)
+                    .ThenInclude(l => l.Tenant)
+                        .ThenInclude(t => t.User)
+                 .Include(u => u.Floor)
+                    .ThenInclude(f => f.Building)
+                        .ThenInclude(b => b.Property)
+                .AsQueryable();
+
+            if (propertyId.HasValue)
+            {
+                unitsQuery = unitsQuery.Where(u => u.Floor.Building.PropertyId == propertyId.Value);
+            }
+
+            var units = await unitsQuery.ToListAsync();
+            
+            return units.Select(u => {
+                var activeLease = u.Leases.FirstOrDefault(l => l.StartDate <= DateTime.Now && l.EndDate >= DateTime.Now);
+                return new OccupancyExportDto
+                {
+                    UnitNumber = u.UnitNumber,
+                    Type = u.Type,
+                    Status = u.Status,
+                    Size = u.Size,
+                    RentPrice = u.RentPrice,
+                    CurrentTenant = activeLease?.Tenant?.User != null ? activeLease.Tenant.User.Name : "N/A",
+                    LeaseEndDate = activeLease?.EndDate
+                };
+            }).ToList();
+        }
+
+        public async Task<List<MaintenanceExportDto>> GetMaintenanceExportDataAsync(DateTime startDate, DateTime endDate)
+        {
+            var requests = await _context.MaintenanceRequests
+                .Include(m => m.Unit)
+                .Where(m => m.CreatedAt >= startDate && m.CreatedAt <= endDate)
+                .ToListAsync();
+
+            return requests.Select(m => new MaintenanceExportDto
+            {
+                RequestId = m.MaintenanceRequestId,
+                UnitNumber = m.Unit.UnitNumber,
+                IssueType = m.IssueType,
+                Priority = m.Priority,
+                Status = m.Status,
+                ReportedDate = m.CreatedAt
+            }).OrderByDescending(x => x.ReportedDate).ToList();
+        }
     }
 
     // DTOs for reporting
@@ -291,5 +399,36 @@ namespace ddacProject.Services
     {
         public string IssueType { get; set; } = string.Empty;
         public int Count { get; set; }
+    }
+
+    public class FinancialExportDto
+    {
+        public DateTime Date { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string PayerPayee { get; set; } = string.Empty;
+    }
+
+    public class OccupancyExportDto
+    {
+        public string UnitNumber { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public decimal Size { get; set; }
+        public decimal RentPrice { get; set; }
+        public string CurrentTenant { get; set; } = string.Empty;
+        public DateTime? LeaseEndDate { get; set; }
+    }
+
+    public class MaintenanceExportDto
+    {
+        public int RequestId { get; set; }
+        public string UnitNumber { get; set; } = string.Empty;
+        public string IssueType { get; set; } = string.Empty;
+        public string Priority { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime ReportedDate { get; set; }
     }
 }

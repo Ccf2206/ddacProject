@@ -5,19 +5,21 @@ import Navbar from '../../components/Navbar';
 export default function TenantDashboard() {
     const [dashboardData, setDashboardData] = useState(null);
     const [notifications, setNotifications] = useState([]);
+    const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
         fetchDashboard();
         fetchNotifications();
+        fetchMessages();
     }, []);
 
     const fetchDashboard = async () => {
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/tenant/dashboard', {
+            const response = await axios.get('http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/tenant/dashboard', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setDashboardData(response.data);
@@ -33,7 +35,7 @@ export default function TenantDashboard() {
     const fetchNotifications = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/notifications', {
+            const response = await axios.get('http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/notifications', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setNotifications(response.data);
@@ -42,11 +44,25 @@ export default function TenantDashboard() {
         }
     };
 
+    const fetchMessages = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get('http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/messages', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            // Only get unread messages
+            const unreadMessages = response.data.filter(m => !m.isRead);
+            setMessages(unreadMessages);
+        } catch (err) {
+            console.error('Error fetching messages:', err);
+        }
+    };
+
     const markAsRead = async (notificationId) => {
         try {
             const token = localStorage.getItem('token');
             await axios.put(
-                `http://localhost:5000/api/notifications/${notificationId}/read`,
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/notifications/${notificationId}/read`,
                 {},
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -62,7 +78,7 @@ export default function TenantDashboard() {
     const deleteNotification = async (notificationId) => {
         try {
             const token = localStorage.getItem('token');
-            await axios.delete(`http://localhost:5000/api/notifications/${notificationId}`, {
+            await axios.delete(`http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/notifications/${notificationId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -102,6 +118,8 @@ export default function TenantDashboard() {
 
     const { tenant, currentUnit, activeLease, upcomingRent, recentInvoices, openMaintenanceRequests } = dashboardData;
     const unreadCount = notifications.filter(n => !n.isRead).length;
+    const unreadMessagesCount = messages.length;
+    const totalUnreadCount = unreadCount + unreadMessagesCount;
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -110,18 +128,47 @@ export default function TenantDashboard() {
                 <h1 className="text-3xl font-bold mb-6">Welcome, {tenant.name}!</h1>
 
                 {/* Notifications Section */}
-                {notifications.length > 0 && (
+                {(notifications.length > 0 || messages.length > 0) && (
                     <div className="mb-6 bg-white rounded-lg shadow p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-2xl font-semibold text-gray-800">
-                                Notifications {unreadCount > 0 && (
+                                Notifications {totalUnreadCount > 0 && (
                                     <span className="ml-2 px-3 py-1 bg-blue-500 text-white text-sm rounded-full">
-                                        {unreadCount} new
+                                        {totalUnreadCount} new
                                     </span>
                                 )}
                             </h2>
                         </div>
                         <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {/* Display Unread Messages/Announcements First */}
+                            {messages.slice(0, 3).map((message) => (
+                                <div
+                                    key={`msg-${message.messageId}`}
+                                    className="border rounded-lg p-4 border-l-4 border-green-500 bg-green-50"
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                                <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                                                    📢 Announcement
+                                                </span>
+                                                <span className="text-xs text-gray-500">
+                                                    {new Date(message.sentAt).toLocaleString()}
+                                                </span>
+                                            </div>
+                                            <p className="text-gray-800 font-semibold mb-1">
+                                                {message.title}
+                                            </p>
+                                            <p className="text-gray-600 text-sm line-clamp-2">
+                                                {message.body}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* Display Regular Notifications */}
                             {notifications.slice(0, 5).map((notification) => (
                                 <div
                                     key={notification.notificationId}

@@ -10,7 +10,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        // This prevents the serializer from getting stuck in the infinite loop
         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
     });
 
@@ -56,15 +55,14 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// Configure CORS for React frontend
+// --- FIX 1: Allow Everything (Prevents CORS Blocks) ---
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
-              .AllowAnyHeader()
+        policy.AllowAnyOrigin()   // Allow anyone (Fixes http vs https mismatch)
               .AllowAnyMethod()
-              .AllowCredentials();
+              .AllowAnyHeader();
     });
 });
 
@@ -79,7 +77,6 @@ builder.Services.AddSwaggerGen(c =>
         Description = "API for Property Management System"
     });
 
-    // Add JWT Authentication to Swagger
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
         Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token",
@@ -108,16 +105,17 @@ builder.Services.AddSwaggerGen(c =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
-{
+//if (app.Environment.IsDevelopment())
+//{
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Property Management API V1");
     });
-}
+//}
 
-app.UseHttpsRedirection();
+// --- FIX 2: DISABLE HTTPS REDIRECT (Prevents "Redirect is not allowed" error) ---
+// app.UseHttpsRedirection(); 
 
 // Ensure uploads directory exists
 var uploadsPath = Path.Combine(app.Environment.WebRootPath ?? "wwwroot", "uploads");
@@ -130,6 +128,7 @@ if (!Directory.Exists(uploadsPath))
 // Serve static files from wwwroot (includes /uploads)
 app.UseStaticFiles();
 
+// --- FIX 3: CORS must be before Auth ---
 app.UseCors("AllowReactApp");
 
 app.UseAuthentication();
@@ -141,7 +140,7 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<PropertyManagementContext>();
-    
+
     // Check if database has been seeded
     if (!context.Roles.Any())
     {
@@ -158,5 +157,6 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-app.Run();
+app.MapGet("/", () => "Server is Running! 🟢");
 
+app.Run();

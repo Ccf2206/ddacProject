@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import DataTable from '../../components/DataTable';
 import ConfirmModal from '../../components/ConfirmModal';
+import SearchBar from '../../components/SearchBar';
 import { usersAPI, rolesAPI } from '../../services/api';
 
 function UsersPage() {
@@ -12,6 +13,7 @@ function UsersPage() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [showUserForm, setShowUserForm] = useState(false);
     const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '', roleId: '' });
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         fetchData();
@@ -122,12 +124,20 @@ function UsersPage() {
         }
     ];
 
+    // Filter users based on search term
+    const filteredUsers = users.filter(user => 
+        user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.roleName?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     return (
         <div className="min-h-screen bg-gray-50">
             <Navbar />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="flex justify-between items-center mb-8">
+                <div className="flex justify-between items-center mb-6">
                     <h2 className="text-3xl font-bold text-gray-800">User Management</h2>
                     <button
                         onClick={() => setShowUserForm(!showUserForm)}
@@ -135,6 +145,15 @@ function UsersPage() {
                     >
                         {showUserForm ? 'Cancel' : '+ New User'}
                     </button>
+                </div>
+
+                {/* Search Bar */}
+                <div className="mb-6">
+                    <SearchBar 
+                        value={searchTerm}
+                        onChange={setSearchTerm}
+                        placeholder="Search users by name, email, phone, or role..."
+                    />
                 </div>
 
                 {showUserForm && (
@@ -206,7 +225,12 @@ function UsersPage() {
                     {loading ? (
                         <p>Loading users...</p>
                     ) : (
-                        <DataTable columns={columns} data={users} />
+                        <>
+                            <div className="mb-4 text-sm text-gray-600">
+                                Showing {filteredUsers.length} of {users.length} users
+                            </div>
+                            <DataTable columns={columns} data={filteredUsers} />
+                        </>
                     )}
                 </div>
 

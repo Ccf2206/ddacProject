@@ -6,8 +6,16 @@ export default function TenantPayments() {
     const [invoices, setInvoices] = useState([]);
     const [selectedInvoice, setSelectedInvoice] = useState(null);
     const [showDetails, setShowDetails] = useState(false);
+    const [showPaymentForm, setShowPaymentForm] = useState(false);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('All');
+    const [paymentFormData, setPaymentFormData] = useState({
+        amount: '',
+        paymentDate: new Date().toISOString().split('T')[0],
+        method: 'Bank Transfer',
+        notes: '',
+        proofFile: null
+    });
 
     useEffect(() => {
         fetchInvoices();
@@ -17,10 +25,12 @@ export default function TenantPayments() {
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/invoices', {
+            const response = await axios.get('http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/invoices', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setInvoices(response.data);
+            // Sort by invoice ID descending
+            const sortedInvoices = response.data.sort((a, b) => b.invoiceId - a.invoiceId);
+            setInvoices(sortedInvoices);
         } catch (error) {
             console.error('Error fetching invoices:', error);
         } finally {
@@ -32,9 +42,10 @@ export default function TenantPayments() {
         try {
             const token = localStorage.getItem('token');
             const response = await axios.get(
-                `http://localhost:5000/api/invoices/${invoice.invoiceId}`,
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/invoices/${invoice.invoiceId}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
+            // Response now contains { invoice, maintenanceCosts }
             setSelectedInvoice(response.data);
             setShowDetails(true);
         } catch (error) {
@@ -42,24 +53,78 @@ export default function TenantPayments() {
         }
     };
 
-    const handlePayInvoice = async (invoiceId) => {
-        if (!confirm('Confirm payment for this invoice?')) return;
+    const handleSubmitPayment = async (e) => {
+        e.preventDefault();
+        if (!selectedInvoice) return;
+
+        // Validate that proof file is provided
+        if (!paymentFormData.proofFile) {
+            alert('Payment receipt/proof is required. Please upload your payment receipt.');
+            return;
+        }
 
         try {
             const token = localStorage.getItem('token');
-            await axios.post(
-                `http://localhost:5000/api/invoices/${invoiceId}/pay`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
+
+            // Step 1: Submit payment data
+            const paymentData = {
+                invoiceId: selectedInvoice.invoice.invoiceId,
+                amount: parseFloat(paymentFormData.amount),
+                paymentDate: paymentFormData.paymentDate,
+                method: paymentFormData.method,
+                notes: paymentFormData.notes
+            };
+
+            const response = await axios.post(
+                'http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/payments/tenant',
+                paymentData,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
             );
 
-            alert('Payment successful!');
+            // Step 2: Upload proof (now always provided)
+            if (response.data.paymentId) {
+                const formData = new FormData();
+                formData.append('file', paymentFormData.proofFile);
+
+                await axios.post(
+                    `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/payments/${response.data.paymentId}/proof`,
+                    formData,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'multipart/form-data'
+                        }
+                    }
+                );
+            }
+
+            alert('Payment submitted successfully! Awaiting approval.');
+            setShowPaymentForm(false);
             setShowDetails(false);
+            setPaymentFormData({
+                amount: '',
+                paymentDate: new Date().toISOString().split('T')[0],
+                method: 'Bank Transfer',
+                notes: '',
+                proofFile: null
+            });
             fetchInvoices();
         } catch (error) {
-            console.error('Error paying invoice:', error);
+            console.error('Error submitting payment:', error);
             alert('Error: ' + (error.response?.data?.message || error.message));
         }
+    };
+
+    const handleRemoveReceipt = () => {
+        setPaymentFormData({
+            ...paymentFormData,
+            proofFile: null
+        });
     };
 
     const getStatusColor = (status, isOverdue) => {
@@ -72,21 +137,74 @@ export default function TenantPayments() {
         }
     };
 
+    const getPaymentStatusBadge = (invoice) => {
+        // Check if invoice has pending payments
+        const hasPendingPayment = invoice.payments && invoice.payments.some(p => p.status === 'Pending');
+        if (hasPendingPayment) {
+            return <span className="px-2 py-1 text-xs rounded-full font-medium bg-blue-100 text-blue-800">In Pending</span>;
+        }
+        return null;
+    };
+
+    const calculateUnpaidAmount = (invoice) => {
+        if (invoice.status === 'Paid') return 0;
+        const totalPaid = invoice.payments
+            ? invoice.payments
+                .filter(p => p.status === 'Approved')
+                .reduce((sum, p) => sum + p.amount, 0)
+            : 0;
+        return invoice.amount - totalPaid;
+    };
+
     const filteredInvoices = invoices.filter(invoice => {
         if (filter === 'All') return true;
         if (filter === 'Paid') return invoice.status === 'Paid';
+        if (filter === 'Unpaid') return invoice.status === 'Unpaid';
         if (filter === 'Pending') return invoice.status === 'Pending' && !invoice.isOverdue;
         if (filter === 'Overdue') return invoice.isOverdue;
         return true;
     });
 
+    // Calculate counts for each status
+    const getStatusCounts = () => {
+        const counts = {
+            All: invoices.length,
+            Paid: invoices.filter(i => i.status === 'Paid').length,
+            Unpaid: invoices.filter(i => i.status === 'Unpaid').length,
+            Pending: invoices.filter(i => i.status === 'Pending' && !i.isOverdue).length,
+            Overdue: invoices.filter(i => i.isOverdue).length
+        };
+        return counts;
+    };
+
+    // Get available filters (only show filters with count > 0, always show All)
+    const getAvailableFilters = () => {
+        const counts = getStatusCounts();
+        const filters = [];
+
+        // Always add "All"
+        filters.push({ name: 'All', count: counts.All });
+
+        // Add other filters only if they have items
+        if (counts.Paid > 0) filters.push({ name: 'Paid', count: counts.Paid });
+        if (counts.Unpaid > 0) filters.push({ name: 'Unpaid', count: counts.Unpaid });
+        if (counts.Pending > 0) filters.push({ name: 'Pending', count: counts.Pending });
+        if (counts.Overdue > 0) filters.push({ name: 'Overdue', count: counts.Overdue });
+
+        return filters;
+    };
+
     const totalPaid = invoices
         .filter(i => i.status === 'Paid')
         .reduce((sum, i) => sum + i.amount, 0);
 
-    const totalPending = invoices
-        .filter(i => i.status === 'Pending')
-        .reduce((sum, i) => sum + i.amount, 0);
+    // Calculate total unpaid: use (amount - paidAmount) for all non-Paid invoices
+    const totalUnpaid = invoices.reduce((sum, i) => {
+        if (i.status !== 'Paid') {
+            return sum + calculateUnpaidAmount(i);
+        }
+        return sum;
+    }, 0);
 
     const totalOverdue = invoices
         .filter(i => i.isOverdue)
@@ -105,8 +223,8 @@ export default function TenantPayments() {
                         <p className="text-2xl font-bold text-green-600">RM {totalPaid.toFixed(2)}</p>
                     </div>
                     <div className="bg-white rounded-lg shadow p-6">
-                        <h3 className="text-gray-500 text-sm font-medium mb-2">Pending</h3>
-                        <p className="text-2xl font-bold text-yellow-600">RM {totalPending.toFixed(2)}</p>
+                        <h3 className="text-gray-500 text-sm font-medium mb-2">Unpaid</h3>
+                        <p className="text-2xl font-bold text-yellow-600">RM {totalUnpaid.toFixed(2)}</p>
                     </div>
                     <div className="bg-white rounded-lg shadow p-6">
                         <h3 className="text-gray-500 text-sm font-medium mb-2">Overdue</h3>
@@ -117,16 +235,16 @@ export default function TenantPayments() {
                 {/* Filter Buttons */}
                 <div className="bg-white rounded-lg shadow p-4 mb-6">
                     <div className="flex gap-2 flex-wrap">
-                        {['All', 'Paid', 'Pending', 'Overdue'].map((status) => (
+                        {getAvailableFilters().map((filterItem) => (
                             <button
-                                key={status}
-                                onClick={() => setFilter(status)}
-                                className={`px-4 py-2 rounded-lg font-medium transition-colors ${filter === status
+                                key={filterItem.name}
+                                onClick={() => setFilter(filterItem.name)}
+                                className={`px-4 py-2 rounded-lg font-medium transition-colors ${filter === filterItem.name
                                     ? 'bg-primary-600 text-white'
                                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                     }`}
                             >
-                                {status}
+                                {filterItem.name} ({filterItem.count})
                             </button>
                         ))}
                     </div>
@@ -142,7 +260,8 @@ export default function TenantPayments() {
                                 <thead className="bg-gray-50">
                                     <tr>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Amount</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unpaid Amount</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Issue Date</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -152,7 +271,7 @@ export default function TenantPayments() {
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {filteredInvoices.length === 0 ? (
                                         <tr>
-                                            <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                                            <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                                                 No invoices found for this filter.
                                             </td>
                                         </tr>
@@ -164,6 +283,9 @@ export default function TenantPayments() {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">
                                                     RM {invoice.amount.toFixed(2)}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-500">
+                                                    RM {calculateUnpaidAmount(invoice).toFixed(2)}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                                                     {new Date(invoice.issueDate).toLocaleDateString()}
@@ -177,20 +299,36 @@ export default function TenantPayments() {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                    <div className="flex gap-2">
+                                                    <div className="flex gap-4">
                                                         <button
                                                             onClick={() => viewDetails(invoice)}
                                                             className="text-primary-600 hover:text-primary-800 font-medium"
                                                         >
                                                             View Details
                                                         </button>
-                                                        {(invoice.status === 'Pending' || invoice.status === 'Unpaid') && (
+                                                        {invoice.status === 'Pending' ? (
                                                             <button
-                                                                onClick={() => handlePayInvoice(invoice.invoiceId)}
-                                                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded font-medium"
+                                                                disabled
+                                                                className="bg-gray-400 text-white px-3 py-1 rounded font-medium cursor-not-allowed"
                                                             >
-                                                                Pay Now
+                                                                In Pending
                                                             </button>
+                                                        ) : (
+                                                            (invoice.status === 'Unpaid' || calculateUnpaidAmount(invoice) > 0) && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedInvoice(invoice);
+                                                                        setPaymentFormData({
+                                                                            ...paymentFormData,
+                                                                            amount: calculateUnpaidAmount(invoice).toString()
+                                                                        });
+                                                                        setShowPaymentForm(true);
+                                                                    }}
+                                                                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded font-medium"
+                                                                >
+                                                                    Upload Receipt
+                                                                </button>
+                                                            )
                                                         )}
                                                     </div>
                                                 </td>
@@ -221,12 +359,12 @@ export default function TenantPayments() {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <p className="text-sm text-gray-500">Invoice Number</p>
-                                        <p className="font-semibold">#{selectedInvoice.invoiceId}</p>
+                                        <p className="font-semibold">#{selectedInvoice.invoice.invoiceId}</p>
                                     </div>
                                     <div>
                                         <p className="text-sm text-gray-500">Status</p>
-                                        <span className={`inline-block px-3 py-1 text-sm rounded-full font-medium ${getStatusColor(selectedInvoice.status, selectedInvoice.isOverdue)}`}>
-                                            {selectedInvoice.isOverdue ? 'Overdue' : selectedInvoice.status}
+                                        <span className={`inline-block px-3 py-1 text-sm rounded-full font-medium ${getStatusColor(selectedInvoice.invoice.status, selectedInvoice.invoice.isOverdue)}`}>
+                                            {selectedInvoice.invoice.isOverdue ? 'Overdue' : selectedInvoice.invoice.status}
                                         </span>
                                     </div>
                                 </div>
@@ -234,40 +372,88 @@ export default function TenantPayments() {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <p className="text-sm text-gray-500">Issue Date</p>
-                                        <p className="font-semibold">{new Date(selectedInvoice.issueDate).toLocaleDateString()}</p>
+                                        <p className="font-semibold">{new Date(selectedInvoice.invoice.issueDate).toLocaleDateString()}</p>
                                     </div>
                                     <div>
                                         <p className="text-sm text-gray-500">Due Date</p>
-                                        <p className="font-semibold">{new Date(selectedInvoice.dueDate).toLocaleDateString()}</p>
+                                        <p className="font-semibold">{new Date(selectedInvoice.invoice.dueDate).toLocaleDateString()}</p>
                                     </div>
                                 </div>
 
                                 <div className="border-t pt-4">
-                                    <div className="flex justify-between items-center">
+                                    <h3 className="font-semibold mb-3">Invoice Breakdown</h3>
+                                    
+                                    {/* Base Rent */}
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="text-gray-700">Base Rent</p>
+                                        <p className="font-medium">
+                                            RM {(selectedInvoice.invoice.amount - (selectedInvoice.maintenanceCosts?.reduce((sum, mc) => sum + mc.costOfParts, 0) || 0)).toFixed(2)}
+                                        </p>
+                                    </div>
+
+                                    {/* Maintenance Costs */}
+                                    {selectedInvoice.maintenanceCosts && selectedInvoice.maintenanceCosts.length > 0 && (
+                                        <div className="mb-2 border-t pt-2">
+                                            <p className="text-gray-700 font-medium mb-2">Maintenance Fees:</p>
+                                            {selectedInvoice.maintenanceCosts.map((mc, index) => (
+                                                <div key={index} className="flex justify-between items-start mb-2 pl-4">
+                                                    <div className="flex-1">
+                                                        <p className="text-sm text-gray-600">{mc.issueType}</p>
+                                                        <p className="text-xs text-gray-500">{mc.notes}</p>
+                                                    </div>
+                                                    <p className="text-sm font-medium text-red-600">
+                                                        RM {mc.costOfParts.toFixed(2)}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Total */}
+                                    <div className="flex justify-between items-center mb-2 border-t pt-2">
                                         <p className="text-lg font-medium">Total Amount</p>
                                         <p className="text-2xl font-bold text-primary-600">
-                                            RM {selectedInvoice.amount.toFixed(2)}
+                                            RM {selectedInvoice.invoice.amount.toFixed(2)}
+                                        </p>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-lg font-medium text-gray-500">Unpaid Amount</p>
+                                        <p className="text-xl font-bold text-gray-500">
+                                            RM {calculateUnpaidAmount(selectedInvoice.invoice).toFixed(2)}
                                         </p>
                                     </div>
                                 </div>
 
-                                {selectedInvoice.payments && selectedInvoice.payments.length > 0 && (
-                                    <div className="border-t pt-4">
+                                {selectedInvoice.invoice.payments && selectedInvoice.invoice.payments.length > 0 && (
+                                    <div className="pt-4">
                                         <h3 className="font-semibold mb-3">Payment History</h3>
                                         <div className="space-y-3">
-                                            {selectedInvoice.payments.map((payment) => (
+                                            {selectedInvoice.invoice.payments.map((payment) => (
                                                 <div key={payment.paymentId} className="bg-gray-50 p-3 rounded-lg">
                                                     <div className="flex justify-between items-start">
                                                         <div>
-                                                            <p className="font-medium">RM {payment.amount.toFixed(2)}</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="font-medium">RM {payment.amount.toFixed(2)}</p>
+                                                                <span className={`px-2 py-1 text-xs rounded-full font-medium ${payment.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                                                                    payment.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                                                                        'bg-red-100 text-red-800'
+                                                                    }`}>
+                                                                    {payment.status}
+                                                                </span>
+                                                            </div>
                                                             <p className="text-sm text-gray-500">
                                                                 {new Date(payment.paymentDate).toLocaleDateString()}
                                                             </p>
                                                             <p className="text-sm text-gray-500">Method: {payment.paymentMethod || payment.method}</p>
+                                                            {payment.status === 'Rejected' && payment.reasonofReject && (
+                                                                <p className="text-sm text-red-600 mt-2">
+                                                                    Reason of Reject: {payment.reasonofReject}
+                                                                </p>
+                                                            )}
                                                         </div>
                                                         {payment.proofUrl && (
                                                             <a
-                                                                href={`http://localhost:5000${payment.proofUrl}`}
+                                                                href={`http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com${payment.proofUrl}`}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
                                                                 className="text-primary-600 hover:text-primary-800 text-sm font-medium"
@@ -285,31 +471,167 @@ export default function TenantPayments() {
                                     </div>
                                 )}
 
-                                {selectedInvoice.isOverdue && selectedInvoice.overdueReminderCount > 0 && (
+                                {selectedInvoice.invoice.isOverdue && selectedInvoice.invoice.overdueReminderCount > 0 && (
                                     <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                                         <p className="text-red-800 font-medium">
-                                            ⚠️ {selectedInvoice.overdueReminderCount} reminder(s) sent
+                                            ⚠️ {selectedInvoice.invoice.overdueReminderCount} reminder(s) sent
                                         </p>
-                                        {selectedInvoice.lastReminderSentAt && (
+                                        {selectedInvoice.invoice.lastReminderSentAt && (
                                             <p className="text-red-600 text-sm mt-1">
-                                                Last reminder: {new Date(selectedInvoice.lastReminderSentAt).toLocaleString()}
+                                                Last reminder: {new Date(selectedInvoice.invoice.lastReminderSentAt).toLocaleString()}
                                             </p>
                                         )}
                                     </div>
                                 )}
-
-                                {/* Pay Now Button */}
-                                {(selectedInvoice.status === 'Pending' || selectedInvoice.status === 'Unpaid') && (
-                                    <div className="pt-4 border-t">
-                                        <button
-                                            onClick={() => handlePayInvoice(selectedInvoice.invoiceId)}
-                                            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-colors"
-                                        >
-                                            💳 Pay Now - RM {selectedInvoice.amount.toFixed(2)}
-                                        </button>
-                                    </div>
-                                )}
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Payment Submission Form Modal */}
+                {showPaymentForm && selectedInvoice && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-lg max-w-lg w-full p-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold">Submit Payment</h2>
+                                <button
+                                    onClick={() => setShowPaymentForm(false)}
+                                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                                >
+                                    ×
+                                </button>
+                            </div>
+
+                            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p className="text-sm text-gray-700">
+                                    <strong>Invoice #</strong> {selectedInvoice.invoice.invoiceId}
+                                </p>
+                                <p className="text-sm text-gray-700">
+                                    <strong>Total Amount:</strong> RM {selectedInvoice.invoice.amount.toFixed(2)}
+                                </p>
+                                <p className="text-sm text-red-600 font-semibold">
+                                    <strong>Unpaid Amount:</strong> RM {calculateUnpaidAmount(selectedInvoice.invoice).toFixed(2)}
+                                </p>
+                            </div>
+
+                            <form onSubmit={handleSubmitPayment} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Amount (RM) *
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0.01"
+                                        value={paymentFormData.amount}
+                                        onChange={(e) => setPaymentFormData({ ...paymentFormData, amount: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        required
+                                        max={calculateUnpaidAmount(selectedInvoice.invoice)}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Minimum: RM 0.01 | Maximum: RM {calculateUnpaidAmount(selectedInvoice.invoice).toFixed(2)}
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Payment Date *
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={paymentFormData.paymentDate}
+                                        onChange={(e) => setPaymentFormData({ ...paymentFormData, paymentDate: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        max={new Date().toISOString().split('T')[0]}
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Payment Method *
+                                    </label>
+                                    <select
+                                        value={paymentFormData.method}
+                                        onChange={(e) => setPaymentFormData({ ...paymentFormData, method: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        required
+                                    >
+                                        <option value="Bank Transfer">Bank Transfer</option>
+                                        <option value="Cash">Cash</option>
+                                        <option value="Cheque">Cheque</option>
+                                        <option value="Online Payment">Online Payment</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Payment Proof / Receipt *
+                                    </label>
+                                    {paymentFormData.proofFile ? (
+                                        <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                                            <span className="text-sm text-gray-700 flex-1">
+                                                📎 {paymentFormData.proofFile.name}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={handleRemoveReceipt}
+                                                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                                            <input
+                                                type="file"
+                                                id="receipt-upload"
+                                                accept="image/*,application/pdf"
+                                                onChange={(e) => setPaymentFormData({ ...paymentFormData, proofFile: e.target.files[0] })}
+                                                className="hidden"
+                                            />
+                                            <label htmlFor="receipt-upload" className="cursor-pointer">
+                                                <p className="text-sm text-gray-600">
+                                                    Click to upload receipt or proof of payment *
+                                                </p>
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    Supported: Images, PDF (Required)
+                                                </p>
+                                            </label>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Notes
+                                    </label>
+                                    <textarea
+                                        value={paymentFormData.notes}
+                                        onChange={(e) => setPaymentFormData({ ...paymentFormData, notes: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                        rows="3"
+                                        placeholder="Optional notes about this payment..."
+                                    />
+                                </div>
+
+                                <div className="flex gap-3 justify-end pt-4 border-t">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPaymentForm(false)}
+                                        className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium"
+                                    >
+                                        Submit Payment
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 )}

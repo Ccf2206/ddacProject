@@ -256,9 +256,14 @@ namespace ddacProject.Controllers
                 return NotFound(new { message = "User not found" });
             }
 
-            var oldUser = new { user.Phone, user.Email };
+            var oldUser = new { user.Name, user.Phone, user.Email };
 
-            // Only allow updating specific fields
+            // Allow updating name, phone, and email
+            if (!string.IsNullOrEmpty(dto.Name))
+            {
+                user.Name = dto.Name;
+            }
+            
             if (!string.IsNullOrEmpty(dto.Phone))
             {
                 user.Phone = dto.Phone;
@@ -278,9 +283,39 @@ namespace ddacProject.Controllers
             await _context.SaveChangesAsync();
 
             // Log audit
-            await _auditService.LogActionAsync(userId, "UPDATE", "Users", oldUser, new { user.Phone, user.Email });
+            await _auditService.LogActionAsync(userId, "UPDATE", "Users", oldUser, new { user.Name, user.Phone, user.Email });
 
             return Ok(new { message = "Profile updated successfully", user = new { user.Name, user.Email, user.Phone } });
+        }
+        
+        // PUT: api/users/me/password
+        [Authorize]
+        [HttpPut("me/password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var user = await _context.Users.FindAsync(userId);
+
+            if (user == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
+
+            // Verify current password
+            if (!BCrypt.Net.BCrypt.Verify(dto.CurrentPassword, user.PasswordHash))
+            {
+                return BadRequest(new { message = "Current password is incorrect" });
+            }
+
+            // Update password
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            user.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            // Log audit (without sensitive data)
+            await _auditService.LogActionAsync(userId, "UPDATE", "Users", "Password changed", "Password changed");
+
+            return Ok(new { message = "Password changed successfully" });
         }
 
         // DELETE: api/users/5

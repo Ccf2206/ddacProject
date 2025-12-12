@@ -7,9 +7,11 @@ namespace ddacProject.Models
         public decimal Amount { get; set; }
         public DateTime PaymentDate { get; set; }
         public string Method { get; set; } = string.Empty; // Cash, Bank Transfer, Credit Card, etc.
+        public string Status { get; set; } = "Pending"; // Pending, Approved, Rejected
         public string? ProofUrl { get; set; }
         public int? StaffId { get; set; }
         public string? Notes { get; set; }
+        public string? ReasonofReject { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation properties

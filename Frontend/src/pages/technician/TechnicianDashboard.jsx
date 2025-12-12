@@ -45,13 +45,21 @@ function TechnicianDashboard() {
 
     const handleUpdateTask = async (e) => {
         e.preventDefault();
+        
+        // Validate cost of parts
+        const cost = parseFloat(updateForm.costOfParts) || 0;
+        if (cost < 0) {
+            alert('Cost of parts cannot be negative. Please enter 0 or a positive value.');
+            return;
+        }
+        
         try {
             const token = localStorage.getItem('token');
             await axios.post(
-                `http://localhost:5000/api/maintenance/${selectedTask.maintenanceRequestId}/update`,
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${selectedTask.maintenanceRequestId}/update`,
                 {
                     notes: updateForm.notes,
-                    costOfParts: parseFloat(updateForm.costOfParts) || 0,
+                    costOfParts: cost,
                     status: updateForm.status
                 },
                 { headers: { Authorization: `Bearer ${token}` } }
@@ -75,7 +83,7 @@ function TechnicianDashboard() {
             formData.append('type', type);
 
             await axios.post(
-                `http://localhost:5000/api/maintenance/${taskId}/photos`,
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${taskId}/photos`,
                 formData,
                 {
                     headers: {
@@ -104,7 +112,7 @@ function TechnicianDashboard() {
         try {
             const token = localStorage.getItem('token');
             await axios.post(
-                `http://localhost:5000/api/maintenance/${taskId}/escalate`,
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${taskId}/escalate`,
                 { reason },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -123,7 +131,7 @@ function TechnicianDashboard() {
         try {
             const token = localStorage.getItem('token');
             await axios.post(
-                `http://localhost:5000/api/maintenance/${task.maintenanceRequestId}/update`,
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${task.maintenanceRequestId}/update`,
                 {
                     notes: 'Task completed',
                     costOfParts: 0,
@@ -210,7 +218,7 @@ function TechnicianDashboard() {
                                             <span className={`badge ${getStatusColor(request.status)}`}>
                                                 {request.status}
                                             </span>
-                                            {request.isEscalated && (
+                                            {request.escalatedToStaff && (
                                                 <span className="badge bg-red-100 text-red-800">🚨 Escalated</span>
                                             )}
                                         </div>
@@ -237,7 +245,7 @@ function TechnicianDashboard() {
                                                     ✅ Complete
                                                 </button>
                                             )}
-                                            {!request.isEscalated && (
+                                            {!request.escalatedToStaff && (
                                                 <button
                                                     onClick={() => handleEscalate(request.maintenanceRequestId)}
                                                     className="btn btn-warning btn-sm"
@@ -337,11 +345,13 @@ function TechnicianDashboard() {
                                     <input
                                         type="number"
                                         step="0.01"
+                                        min="0"
                                         value={updateForm.costOfParts}
                                         onChange={(e) => setUpdateForm({ ...updateForm, costOfParts: e.target.value })}
                                         className="input"
                                         placeholder="0.00"
                                     />
+                                    <p className="text-xs text-gray-500 mt-1">Enter 0 or positive value only</p>
                                 </div>
 
                                 {/* Photo Uploads */}

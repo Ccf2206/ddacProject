@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import useAuthStore from './stores/authStore';
 
@@ -18,6 +18,7 @@ import ReportsPage from './pages/staff/ReportsPage';
 import MessagesPage from './pages/staff/MessagesPage';
 import TenantDashboard from './pages/tenant/TenantDashboard';
 import NotificationsPage from './pages/tenant/NotificationsPage';
+import AnnouncementsPage from './pages/tenant/AnnouncementsPage';
 import TenantMaintenance from './pages/tenant/TenantMaintenance';
 import TenantPayments from './pages/tenant/TenantPayments';
 import TenantLease from './pages/tenant/TenantLease';
@@ -45,12 +46,31 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   return children;
 };
 
-function App() {
+// Component to handle S3 redirects
+function RedirectHandler() {
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    const redirectPath = sessionStorage.getItem('redirectPath');
+    if (redirectPath && redirectPath !== '/') {
+      sessionStorage.removeItem('redirectPath');
+      navigate(redirectPath, { replace: true });
+    }
+  }, [navigate]);
+  
+  return null;
+}
+
+function AppContent() {
   const { checkAuth, isAuthenticated, user } = useAuthStore();
 
   useEffect(() => {
-    checkAuth();
-  }, []);
+    // Only check auth if we're not already authenticated
+    // This prevents unnecessary API calls after fresh login
+    if (!isAuthenticated) {
+      checkAuth();
+    }
+  }, [isAuthenticated, checkAuth]);
 
   // Redirect to appropriate dashboard based on role
   const getDefaultRoute = () => {
@@ -71,7 +91,8 @@ function App() {
   };
 
   return (
-    <Router>
+    <>
+      <RedirectHandler />
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
@@ -242,6 +263,14 @@ function App() {
           }
         />
         <Route
+          path="/tenant/announcements"
+          element={
+            <ProtectedRoute allowedRoles={['Tenant']}>
+              <AnnouncementsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/tenant/maintenance"
           element={
             <ProtectedRoute allowedRoles={['Tenant']}>
@@ -280,6 +309,14 @@ function App() {
         {/* 404 */}
         <Route path="*" element={<div className="min-h-screen flex items-center justify-center"><div className="text-center"><h1 className="text-4xl font-bold text-gray-800 mb-4">404</h1><p className="text-gray-600">Page not found</p></div></div>} />
       </Routes>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
     </Router>
   );
 }

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ddacProject.Data;
 
@@ -16,14 +17,18 @@ namespace ddacProject.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.0")
+                .HasAnnotation("ProductVersion", "8.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 64);
+
+            MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
             modelBuilder.Entity("ddacProject.Models.AuditLog", b =>
                 {
                     b.Property<int>("AuditLogId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("AuditLogId"));
 
                     b.Property<string>("ActionType")
                         .IsRequired()
@@ -65,6 +70,8 @@ namespace ddacProject.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("BuildingId"));
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -91,6 +98,8 @@ namespace ddacProject.Migrations
                     b.Property<int>("ExpenseId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("ExpenseId"));
 
                     b.Property<decimal>("Amount")
                         .HasPrecision(10, 2)
@@ -129,6 +138,8 @@ namespace ddacProject.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("FloorId"));
+
                     b.Property<int>("BuildingId")
                         .HasColumnType("int");
 
@@ -150,6 +161,8 @@ namespace ddacProject.Migrations
                     b.Property<int>("InvoiceId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("InvoiceId"));
 
                     b.Property<decimal>("Amount")
                         .HasPrecision(10, 2)
@@ -173,6 +186,9 @@ namespace ddacProject.Migrations
                     b.Property<int>("OverdueReminderCount")
                         .HasColumnType("int");
 
+                    b.Property<decimal>("PaidAmount")
+                        .HasColumnType("decimal(65,30)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -190,6 +206,8 @@ namespace ddacProject.Migrations
                     b.Property<int>("LeaseId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("LeaseId"));
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -250,6 +268,8 @@ namespace ddacProject.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("LeaseHistoryId"));
+
                     b.Property<string>("ChangeType")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -282,6 +302,8 @@ namespace ddacProject.Migrations
                     b.Property<int>("TemplateId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("TemplateId"));
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -322,6 +344,8 @@ namespace ddacProject.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("MaintenanceAssignmentId"));
+
                     b.Property<DateTime>("AssignedDate")
                         .HasColumnType("datetime(6)");
 
@@ -352,6 +376,8 @@ namespace ddacProject.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("MaintenancePhotoId"));
+
                     b.Property<int>("MaintenanceRequestId")
                         .HasColumnType("int");
 
@@ -379,6 +405,8 @@ namespace ddacProject.Migrations
                     b.Property<int>("MaintenanceRequestId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("MaintenanceRequestId"));
 
                     b.Property<int?>("CompletedByStaffId")
                         .HasColumnType("int");
@@ -437,6 +465,8 @@ namespace ddacProject.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("MaintenanceUpdateId"));
+
                     b.Property<decimal?>("CostOfParts")
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
@@ -473,6 +503,8 @@ namespace ddacProject.Migrations
                     b.Property<int>("MessageId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("MessageId"));
 
                     b.Property<string>("AttachmentUrl")
                         .HasColumnType("longtext");
@@ -516,6 +548,8 @@ namespace ddacProject.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("NotificationId"));
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -547,6 +581,8 @@ namespace ddacProject.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("PaymentId"));
+
                     b.Property<decimal>("Amount")
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
@@ -571,8 +607,15 @@ namespace ddacProject.Migrations
                     b.Property<string>("ProofUrl")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("ReasonofReject")
+                        .HasColumnType("longtext");
+
                     b.Property<int?>("StaffId")
                         .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
 
                     b.HasKey("PaymentId");
 
@@ -588,6 +631,8 @@ namespace ddacProject.Migrations
                     b.Property<int>("PropertyId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("PropertyId"));
 
                     b.Property<string>("Address")
                         .IsRequired()
@@ -632,6 +677,8 @@ namespace ddacProject.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("RoleId"));
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -656,6 +703,8 @@ namespace ddacProject.Migrations
                     b.Property<int>("ScheduledNotificationId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("ScheduledNotificationId"));
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -706,6 +755,8 @@ namespace ddacProject.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("StaffId"));
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -735,6 +786,8 @@ namespace ddacProject.Migrations
                     b.Property<int>("ApprovalId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("ApprovalId"));
 
                     b.Property<string>("ActionData")
                         .HasColumnType("longtext");
@@ -791,6 +844,8 @@ namespace ddacProject.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("ConfigurationId"));
+
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -833,6 +888,8 @@ namespace ddacProject.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("TechnicianId"));
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -862,6 +919,8 @@ namespace ddacProject.Migrations
                     b.Property<int>("TenantId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("TenantId"));
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -908,6 +967,8 @@ namespace ddacProject.Migrations
                     b.Property<int>("UnitId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("UnitId"));
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -964,6 +1025,8 @@ namespace ddacProject.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("UnitPhotoId"));
+
                     b.Property<bool>("IsPrimary")
                         .HasColumnType("tinyint(1)");
 
@@ -989,6 +1052,8 @@ namespace ddacProject.Migrations
                     b.Property<int>("UserId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("UserId"));
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");

@@ -105,6 +105,12 @@ namespace ddacProject.Controllers
         [HttpPost]
         public async Task<ActionResult<Lease>> CreateLease([FromBody] CreateLeaseDto dto)
         {
+            // Validate start date is not earlier than today
+            if (dto.StartDate.Date < DateTime.UtcNow.Date)
+            {
+                return BadRequest(new { message = "Lease start date cannot be earlier than today" });
+            }
+
             // Verify tenant exists
             var tenant = await _context.Tenants.FindAsync(dto.TenantId);
             if (tenant == null)
@@ -132,8 +138,9 @@ namespace ddacProject.Controllers
                 DepositAmount = dto.DepositAmount,
                 StartDate = dto.StartDate,
                 EndDate = dto.EndDate,
-                PaymentCycle = dto.PaymentCycle,
-                Status = "Active"
+                PaymentCycle = "Monthly",
+                Status = "Active",
+                CreatedAt = DateTime.UtcNow
             };
 
             _context.Leases.Add(lease);
@@ -145,6 +152,25 @@ namespace ddacProject.Controllers
             // Update tenant's current unit
             tenant.CurrentUnitId = dto.UnitId;
             tenant.MoveInDate = dto.StartDate;
+
+            await _context.SaveChangesAsync();
+
+            // Generate monthly invoices automatically
+            var currentDate = lease.StartDate;
+            while (currentDate < lease.EndDate)
+            {
+                var invoice = new Invoice
+                {
+                    LeaseId = lease.LeaseId,
+                    Amount = lease.RentAmount,
+                    IssueDate = currentDate,
+                    DueDate = new DateTime(currentDate.Year, currentDate.Month, 1).AddMonths(1),
+                    Status = "Pending",
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.Invoices.Add(invoice);
+                currentDate = currentDate.AddMonths(1);
+            }
 
             await _context.SaveChangesAsync();
 
@@ -207,11 +233,13 @@ namespace ddacProject.Controllers
         // PUT: api/leases/5/terminate
         [Authorize(Roles = "Admin,Staff")]
         [HttpPut("{id}/terminate")]
-        public async Task<IActionResult> TerminateLease(int id)
+        public async Task<ActionResult<object>> TerminateLease(int id)
         {
             var lease = await _context.Leases
                 .Include(l => l.Unit)
                 .Include(l => l.Tenant)
+                .Include(l => l.Invoices)
+                    .ThenInclude(i => i.Payments)
                 .FirstOrDefaultAsync(l => l.LeaseId == id);
 
             if (lease == null)
@@ -219,16 +247,40 @@ namespace ddacProject.Controllers
                 return NotFound(new { message = "Lease not found" });
             }
 
+            if (lease.Status == "Terminated")
+            {
+                return BadRequest(new { message = "Lease is already terminated" });
+            }
+
+            // Delete all payments associated with invoices
+            var paymentsToDelete = lease.Invoices.SelectMany(i => i.Payments).ToList();
+            if (paymentsToDelete.Any())
+            {
+                _context.Payments.RemoveRange(paymentsToDelete);
+            }
+
+            // Delete all invoices associated with this lease
+            if (lease.Invoices.Any())
+            {
+                _context.Invoices.RemoveRange(lease.Invoices);
+            }
+
             lease.Status = "Terminated";
             lease.UpdatedAt = DateTime.UtcNow;
 
             // Update unit status
-            lease.Unit.Status = "Available";
-            lease.Unit.UpdatedAt = DateTime.UtcNow;
+            if (lease.Unit != null)
+            {
+                lease.Unit.Status = "Available";
+                lease.Unit.UpdatedAt = DateTime.UtcNow;
+            }
 
             // Update tenant
-            lease.Tenant.CurrentUnitId = null;
-            lease.Tenant.MoveOutDate = DateTime.UtcNow;
+            if (lease.Tenant != null)
+            {
+                lease.Tenant.CurrentUnitId = null;
+                lease.Tenant.MoveOutDate = DateTime.UtcNow;
+            }
 
             // Add to history
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -236,15 +288,22 @@ namespace ddacProject.Controllers
             {
                 LeaseId = id,
                 ChangeType = "Termination",
-                OldDetails = Newtonsoft.Json.JsonConvert.SerializeObject(lease),
-                NewDetails = null,
-                ChangedByUserId = userId
+                OldDetails = Newtonsoft.Json.JsonConvert.SerializeObject(new { lease.Status, lease.UpdatedAt }),
+                NewDetails = "Terminated",
+                ChangedByUserId = userId,
+                ChangedAt = DateTime.UtcNow
             };
             _context.LeaseHistories.Add(history);
 
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Lease terminated successfully" });
+            return Ok(new { 
+                message = "Lease terminated successfully",
+                leaseId = id,
+                status = "Terminated",
+                invoicesDeleted = lease.Invoices.Count,
+                paymentsDeleted = paymentsToDelete.Count
+            });
         }
 
         // POST: api/leases/5/signed-copy

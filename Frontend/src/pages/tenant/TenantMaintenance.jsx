@@ -24,7 +24,7 @@ export default function TenantMaintenance() {
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/maintenance', {
+            const response = await axios.get('http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setRequests(response.data);
@@ -39,7 +39,7 @@ export default function TenantMaintenance() {
         e.preventDefault();
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.post('http://localhost:5000/api/maintenance', formData, {
+            const response = await axios.post('http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance', formData, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -53,7 +53,7 @@ export default function TenantMaintenance() {
                     photoFormData.append('type', 'Initial');
 
                     await axios.post(
-                        `http://localhost:5000/api/maintenance/${requestId}/photos`,
+                        `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${requestId}/photos`,
                         photoFormData,
                         {
                             headers: {
@@ -98,7 +98,7 @@ export default function TenantMaintenance() {
         try {
             const token = localStorage.getItem('token');
             const response = await axios.get(
-                `http://localhost:5000/api/maintenance/${request.maintenanceRequestId}`,
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${request.maintenanceRequestId}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             setSelectedRequest(response.data);
@@ -349,10 +349,10 @@ export default function TenantMaintenance() {
                                             {selectedRequest.maintenancePhotos.map((photo, idx) => (
                                                 <img
                                                     key={idx}
-                                                    src={`http://localhost:5000${photo.photoUrl}`}
+                                                    src={`http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com${photo.photoUrl}`}
                                                     alt={`Photo ${idx + 1}`}
                                                     className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80"
-                                                    onClick={() => window.open(`http://localhost:5000${photo.photoUrl}`, '_blank')}
+                                                    onClick={() => window.open(`http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com${photo.photoUrl}`, '_blank')}
                                                 />
                                             ))}
                                         </div>

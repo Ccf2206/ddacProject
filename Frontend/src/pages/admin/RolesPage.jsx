@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import DataTable from '../../components/DataTable';
 import ConfirmModal from '../../components/ConfirmModal';
+import SearchBar from '../../components/SearchBar';
 import { rolesAPI } from '../../services/api';
 
 function RolesPage() {
@@ -11,6 +12,7 @@ function RolesPage() {
     const [selectedRole, setSelectedRole] = useState(null);
     const [showRoleForm, setShowRoleForm] = useState(false);
     const [formData, setFormData] = useState({ roleName: '', permissions: [] });
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Available permissions grouped by module
     const permissionGroups = {
@@ -164,10 +166,29 @@ function RolesPage() {
                 )}
 
                 <div className="card">
+                    <div className="mb-4">
+                        <SearchBar
+                            value={searchTerm}
+                            onChange={setSearchTerm}
+                            placeholder="Search by role name or permissions..."
+                        />
+                        <p className="text-sm text-gray-600 mt-2">
+                            Showing {roles.filter(role =>
+                                role.roleName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                role.permissions.some(p => p.toLowerCase().includes(searchTerm.toLowerCase()))
+                            ).length} of {roles.length} roles
+                        </p>
+                    </div>
                     {loading ? (
                         <p>Loading roles...</p>
                     ) : (
-                        <DataTable columns={columns} data={roles} />
+                        <DataTable
+                            columns={columns}
+                            data={roles.filter(role =>
+                                role.roleName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                role.permissions.some(p => p.toLowerCase().includes(searchTerm.toLowerCase()))
+                            )}
+                        />
                     )}
                 </div>
 

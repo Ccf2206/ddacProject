@@ -23,13 +23,14 @@ namespace ddacProject.Controllers
 
         // GET: api/units
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Unit>>> GetUnits([FromQuery] string? status, [FromQuery] int? propertyId)
+        public async Task<ActionResult<IEnumerable<Unit>>> GetUnits([FromQuery] string? status, [FromQuery] int? propertyId, [FromQuery] bool? availableForTenant)
         {
             var query = _context.Units
                 .Include(u => u.Floor)
                     .ThenInclude(f => f.Building)
                         .ThenInclude(b => b.Property)
                 .Include(u => u.UnitPhotos)
+                .Include(u => u.Tenants)
                 .AsQueryable();
 
             if (!string.IsNullOrEmpty(status))
@@ -40,6 +41,13 @@ namespace ddacProject.Controllers
             if (propertyId.HasValue)
             {
                 query = query.Where(u => u.Floor.Building.PropertyId == propertyId);
+            }
+
+            // Filter for units that are available for tenant assignment
+            // Only show units that are Available or Reserved, not Occupied
+            if (availableForTenant.HasValue && availableForTenant.Value)
+            {
+                query = query.Where(u => u.Status == "Available" || u.Status == "Reserved");
             }
 
             var units = await query.ToListAsync();
@@ -114,27 +122,22 @@ namespace ddacProject.Controllers
         // PUT: api/units/5
         [Authorize(Roles = "Admin,Staff")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUnit(int id, [FromBody] Unit unit)
+        public async Task<IActionResult> UpdateUnit(int id, [FromBody] UpdateUnitDto dto)
         {
-            if (id != unit.UnitId)
-            {
-                return BadRequest(new { message = "ID mismatch" });
-            }
-
             var existingUnit = await _context.Units.FindAsync(id);
             if (existingUnit == null)
             {
                 return NotFound(new { message = "Unit not found" });
             }
 
-            existingUnit.UnitNumber = unit.UnitNumber;
-            existingUnit.Size = unit.Size;
-            existingUnit.Type = unit.Type;
-            existingUnit.RentPrice = unit.RentPrice;
-            existingUnit.DepositAmount = unit.DepositAmount;
-            existingUnit.MaxTenants = unit.MaxTenants;
-            existingUnit.Status = unit.Status;
-            existingUnit.Notes = unit.Notes;
+            existingUnit.UnitNumber = dto.UnitNumber;
+            existingUnit.Size = dto.Size;
+            existingUnit.Type = dto.Type;
+            existingUnit.RentPrice = dto.RentPrice;
+            existingUnit.DepositAmount = dto.DepositAmount;
+            existingUnit.MaxTenants = dto.MaxTenants;
+            existingUnit.Status = dto.Status;
+            existingUnit.Notes = dto.Notes;
             existingUnit.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();

@@ -21,7 +21,7 @@ namespace ddacProject.Controllers
 
         // GET: api/invoices
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Invoice>>> GetInvoices([FromQuery] string? status)
+        public async Task<ActionResult<IEnumerable<object>>> GetInvoices([FromQuery] string? status)
         {
             var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -31,15 +31,15 @@ namespace ddacProject.Controllers
                     .ThenInclude(l => l.Tenant)
                         .ThenInclude(t => t.User)
                 .Include(i => i.Lease.Unit)
-                .Include(i => i.Payments)
+                .AsNoTracking()
                 .AsQueryable();
 
             // Filter based on role
             if (userRole == "Tenant")
             {
-                var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.UserId == userId);
+                var tenant = await _context.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.UserId == userId);
                 if (tenant == null)
-                    return Ok(new List<Invoice>());
+                    return Ok(new List<object>());
 
                 query = query.Where(i => i.Lease.TenantId == tenant.TenantId);
             }
@@ -49,13 +49,40 @@ namespace ddacProject.Controllers
                 query = query.Where(i => i.Status == status);
             }
 
-            var invoices = await query.OrderByDescending(i => i.IssueDate).ToListAsync();
+            var invoices = await query
+                .OrderByDescending(i => i.InvoiceId)
+                .Select(i => new {
+                    i.InvoiceId,
+                    i.LeaseId,
+                    i.Amount,
+                    i.PaidAmount,
+                    i.IssueDate,
+                    i.DueDate,
+                    i.Status,
+                    i.CreatedAt,
+                    Lease = new {
+                        i.Lease.LeaseId,
+                        Tenant = new {
+                            i.Lease.Tenant.TenantId,
+                            User = new {
+                                i.Lease.Tenant.User.Name,
+                                i.Lease.Tenant.User.Email
+                            }
+                        },
+                        Unit = new {
+                            i.Lease.Unit.UnitId,
+                            i.Lease.Unit.UnitNumber
+                        }
+                    }
+                })
+                .ToListAsync();
+                
             return Ok(invoices);
         }
 
         // GET: api/invoices/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Invoice>> GetInvoice(int id)
+        public async Task<ActionResult<object>> GetInvoice(int id)
         {
             var invoice = await _context.Invoices
                 .Include(i => i.Lease)
@@ -63,6 +90,7 @@ namespace ddacProject.Controllers
                         .ThenInclude(t => t.User)
                 .Include(i => i.Lease.Unit)
                 .Include(i => i.Payments)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(i => i.InvoiceId == id);
 
             if (invoice == null)
@@ -70,7 +98,29 @@ namespace ddacProject.Controllers
                 return NotFound(new { message = "Invoice not found" });
             }
 
-            return Ok(invoice);
+            // Fetch maintenance costs for this tenant during the invoice period
+            var maintenanceCosts = await _context.MaintenanceRequests
+                .Where(mr => mr.TenantId == invoice.Lease.TenantId &&
+                             mr.UnitId == invoice.Lease.UnitId &&
+                             mr.CreatedAt >= invoice.IssueDate.AddDays(-30) && // Within 30 days before invoice
+                             mr.CreatedAt <= invoice.IssueDate)
+                .SelectMany(mr => mr.MaintenanceUpdates)
+                .Where(mu => mu.CostOfParts.HasValue && mu.CostOfParts > 0)
+                .Select(mu => new {
+                    mu.MaintenanceUpdateId,
+                    mu.MaintenanceRequestId,
+                    mu.CostOfParts,
+                    mu.Notes,
+                    mu.UpdatedAt,
+                    IssueType = mu.MaintenanceRequest.IssueType,
+                    Description = mu.MaintenanceRequest.Description
+                })
+                .ToListAsync();
+
+            return Ok(new {
+                invoice,
+                maintenanceCosts
+            });
         }
 
         // POST: api/invoices
@@ -180,6 +230,7 @@ namespace ddacProject.Controllers
                     .ThenInclude(l => l.Tenant)
                         .ThenInclude(t => t.User)
                 .Include(i => i.Lease.Unit)
+                .AsSplitQuery()
                 .Where(i => i.Status != "Paid" && i.DueDate < DateTime.UtcNow)
                 .OrderBy(i => i.DueDate)
                 .ToListAsync();
@@ -196,6 +247,7 @@ namespace ddacProject.Controllers
                 .Include(i => i.Lease)
                     .ThenInclude(l => l.Tenant)
                         .ThenInclude(t => t.User)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(i => i.InvoiceId == id);
 
             if (invoice == null)
@@ -218,6 +270,43 @@ namespace ddacProject.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Reminder sent successfully", overdueReminderCount = invoice.OverdueReminderCount });
+        }
+
+        // DELETE: api/invoices/cleanup-terminated
+        [Authorize(Roles = "Admin")]
+        [HttpDelete("cleanup-terminated")]
+        public async Task<ActionResult<object>> CleanupTerminatedLeaseInvoices()
+        {
+            // Find all invoices associated with terminated leases
+            var invoicesToDelete = await _context.Invoices
+                .Include(i => i.Lease)
+                .Include(i => i.Payments)
+                .Where(i => i.Lease.Status == "Terminated")
+                .ToListAsync();
+
+            if (!invoicesToDelete.Any())
+            {
+                return Ok(new { message = "No invoices found for terminated leases", invoicesDeleted = 0, paymentsDeleted = 0 });
+            }
+
+            // Delete all payments associated with these invoices
+            var paymentsToDelete = invoicesToDelete.SelectMany(i => i.Payments).ToList();
+            if (paymentsToDelete.Any())
+            {
+                _context.Payments.RemoveRange(paymentsToDelete);
+            }
+
+            // Delete the invoices
+            _context.Invoices.RemoveRange(invoicesToDelete);
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { 
+                message = "Cleanup completed successfully",
+                invoicesDeleted = invoicesToDelete.Count,
+                paymentsDeleted = paymentsToDelete.Count,
+                terminatedLeasesAffected = invoicesToDelete.Select(i => i.LeaseId).Distinct().Count()
+            });
         }
     }
 

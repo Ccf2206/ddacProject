@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import axios from 'axios';
-import { FaChartBar, FaDollarSign, FaHome, FaWrench, FaExclamationTriangle } from 'react-icons/fa';
+import { FaChartBar, FaDollarSign, FaHome, FaWrench, FaExclamationTriangle, FaPrint, FaFileDownload } from 'react-icons/fa';
 
 function ReportsPage() {
     const [loading, setLoading] = useState(true);
@@ -36,14 +36,14 @@ function ReportsPage() {
             const token = localStorage.getItem('token');
 
             const [financial, occupancy, maintenance] = await Promise.all([
-                axios.get('http://localhost:5000/api/reports/financial', {
+                axios.get('http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/reports/financial', {
                     params: dateRange,
                     headers: { Authorization: `Bearer ${token}` }
                 }),
-                axios.get('http://localhost:5000/api/reports/occupancy', {
+                axios.get('http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/reports/occupancy', {
                     headers: { Authorization: `Bearer ${token}` }
                 }),
-                axios.get('http://localhost:5000/api/reports/maintenance', {
+                axios.get('http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/reports/maintenance', {
                     params: dateRange,
                     headers: { Authorization: `Bearer ${token}` }
                 })
@@ -62,6 +62,52 @@ function ReportsPage() {
 
     const handleDateRangeChange = () => {
         fetchReports();
+    };
+
+    const handleExport = async (type) => {
+        try {
+            const token = localStorage.getItem('token');
+            let url = '';
+            let params = {};
+            let filename = '';
+
+            switch (type) {
+                case 'financial':
+                    url = 'http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/reports/financial/export';
+                    params = dateRange;
+                    filename = `financial_report_${formatLocalDate(new Date())}.csv`;
+                    break;
+                case 'occupancy':
+                    url = 'http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/reports/occupancy/export';
+                    filename = `occupancy_report_${formatLocalDate(new Date())}.csv`;
+                    break;
+                case 'maintenance':
+                    url = 'http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/reports/maintenance/export';
+                    params = dateRange;
+                    filename = `maintenance_report_${formatLocalDate(new Date())}.csv`;
+                    break;
+                default:
+                    return;
+            }
+
+            const response = await axios.get(url, {
+                params,
+                headers: { Authorization: `Bearer ${token}` },
+                responseType: 'blob'
+            });
+
+            const href = window.URL.createObjectURL(response.data);
+            const link = document.createElement('a');
+            link.href = href;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(href);
+        } catch (error) {
+            console.error('Error exporting report:', error);
+            alert('Failed to export report. Please try again.');
+        }
     };
 
     if (loading) {
@@ -115,7 +161,16 @@ function ReportsPage() {
                 {/* Financial Report */}
                 {financialReport && (
                     <div className="card mb-6">
-                        <h3 className="text-2xl font-semibold mb-4 flex items-center gap-2"><FaDollarSign /> Financial Summary</h3>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-2xl font-semibold flex items-center gap-2"><FaDollarSign /> Financial Summary</h3>
+                            <button
+                                onClick={() => handleExport('financial')}
+                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 print:hidden"
+                                title="Export as CSV"
+                            >
+                                <FaFileDownload /> Export CSV
+                            </button>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-green-50 p-4 rounded-lg">
                                 <p className="text-sm text-green-600 font-medium">Total Revenue</p>
@@ -154,7 +209,16 @@ function ReportsPage() {
                 {/* Occupancy Report */}
                 {occupancyReport && (
                     <div className="card mb-6">
-                        <h3 className="text-2xl font-semibold mb-4 flex items-center gap-2"><FaHome /> Occupancy Statistics</h3>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-2xl font-semibold flex items-center gap-2"><FaHome /> Occupancy Statistics</h3>
+                            <button
+                                onClick={() => handleExport('occupancy')}
+                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 print:hidden"
+                                title="Export as CSV"
+                            >
+                                <FaFileDownload /> Export CSV
+                            </button>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                             <div className="bg-blue-50 p-4 rounded-lg">
                                 <p className="text-sm text-blue-600 font-medium">Total Units</p>
@@ -210,7 +274,16 @@ function ReportsPage() {
                 {/* Maintenance Report */}
                 {maintenanceReport && (
                     <div className="card">
-                        <h3 className="text-2xl font-semibold mb-4 flex items-center gap-2"><FaWrench /> Maintenance Trends</h3>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-2xl font-semibold flex items-center gap-2"><FaWrench /> Maintenance Trends</h3>
+                            <button
+                                onClick={() => handleExport('maintenance')}
+                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 print:hidden"
+                                title="Export as CSV"
+                            >
+                                <FaFileDownload /> Export CSV
+                            </button>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-yellow-50 p-4 rounded-lg">
                                 <p className="text-sm text-yellow-600 font-medium">Total Requests</p>

@@ -6,4 +6,10 @@ namespace ddacProject.DTOs
         public string Name { get; set; } = string.Empty;
         public int TotalFloors { get; set; }
     }
+
+    public class UpdateBuildingDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public int TotalFloors { get; set; }
+    }
 }
