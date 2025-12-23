@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import DataTable from '../../components/DataTable';
 import SearchBar from '../../components/SearchBar';
+import PermissionGuard from '../../components/PermissionGuard';
+import { PERMISSIONS } from '../../utils/permissions';
 import { invoicesAPI, leasesAPI } from '../../services/api';
 import { FaEnvelope, FaTrash } from 'react-icons/fa';
 import useAuthStore from '../../stores/authStore';
@@ -156,13 +158,15 @@ function InvoicesPage() {
                         <option value="Overdue">Overdue</option>
                     </select>
                     {(row.status === 'Overdue' || row.status === 'Unpaid') && (
-                        <button
-                            onClick={() => handleSendReminder(row.invoiceId)}
-                            className="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 flex items-center gap-1"
-                            title="Send payment reminder"
-                        >
-                            <FaEnvelope /> Remind
-                        </button>
+                        <PermissionGuard permission={PERMISSIONS.INVOICES_CREATE}>
+                            <button
+                                onClick={() => handleSendReminder(row.invoiceId)}
+                                className="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 flex items-center gap-1"
+                                title="Send payment reminder"
+                            >
+                                <FaEnvelope /> Remind
+                            </button>
+                        </PermissionGuard>
                     )}
                 </div>
             )
@@ -187,17 +191,21 @@ function InvoicesPage() {
                     <h2 className="text-3xl font-bold text-gray-800">Invoices Management</h2>
                     <div className="flex gap-3">
                         {user?.roleName === 'Admin' && (
-                            <button 
-                                onClick={handleCleanupTerminated} 
-                                className="btn bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
-                                disabled={isCleaningUp}
-                            >
-                                <FaTrash /> {isCleaningUp ? 'Cleaning...' : 'Cleanup Terminated'}
-                            </button>
+                            <PermissionGuard permission={PERMISSIONS.INVOICES_CREATE}>
+                                <button 
+                                    onClick={handleCleanupTerminated} 
+                                    className="btn bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+                                    disabled={isCleaningUp}
+                                >
+                                    <FaTrash /> {isCleaningUp ? 'Cleaning...' : 'Cleanup Terminated'}
+                                </button>
+                            </PermissionGuard>
                         )}
-                        <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
-                            {showForm ? 'Cancel' : '+ Generate Invoice'}
-                        </button>
+                        <PermissionGuard permission={PERMISSIONS.INVOICES_CREATE}>
+                            <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
+                                {showForm ? 'Cancel' : '+ Generate Invoice'}
+                            </button>
+                        </PermissionGuard>
                     </div>
                 </div>
 

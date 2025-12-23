@@ -36,7 +36,13 @@ namespace ddacProject.Controllers
                 ProfilePhotoUrl = user.ProfilePhotoUrl,
                 Status = user.Status,
                 RoleName = user.Role.RoleName,
-                RoleId = user.RoleId
+                RoleId = user.RoleId,
+                Role = new AuthRoleDto
+                {
+                    RoleId = user.Role.RoleId,
+                    RoleName = user.Role.RoleName,
+                    Permissions = user.Role.Permissions
+                }
             };
 
             return Ok(new LoginResponse
@@ -85,7 +91,13 @@ namespace ddacProject.Controllers
                 ProfilePhotoUrl = user.ProfilePhotoUrl,
                 Status = user.Status,
                 RoleName = user.Role.RoleName,
-                RoleId = user.RoleId
+                RoleId = user.RoleId,
+                Role = new AuthRoleDto
+                {
+                    RoleId = user.Role.RoleId,
+                    RoleName = user.Role.RoleName,
+                    Permissions = user.Role.Permissions
+                }
             };
 
             return Ok(userDto);

@@ -4,6 +4,8 @@ import DataTable from '../../components/DataTable';
 import ConfirmModal from '../../components/ConfirmModal';
 import SearchBar from '../../components/SearchBar';
 import { propertiesAPI, expensesAPI } from '../../services/api';
+import PermissionGuard from '../../components/PermissionGuard';
+import { PERMISSIONS } from '../../utils/permissions';
 
 function ExpensesPage() {
     const [expenses, setExpenses] = useState([]);
@@ -98,9 +100,11 @@ function ExpensesPage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-3xl font-bold text-gray-800">Expenses Management</h2>
-                    <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
-                        {showForm ? 'Cancel' : '+ Record Expense'}
-                    </button>
+                    <PermissionGuard permission={PERMISSIONS.EXPENSES_CREATE}>
+                        <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
+                            {showForm ? 'Cancel' : '+ Record Expense'}
+                        </button>
+                    </PermissionGuard>
                 </div>
 
                 {/* Search Bar */}

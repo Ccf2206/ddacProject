@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ddacProject.Data;
 using ddacProject.Models;
 using ddacProject.DTOs;
+using ddacProject.Authorization;
 
 namespace ddacProject.Controllers
 {
@@ -20,6 +21,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/properties
+        [RequirePermission(PermissionConstants.PROPERTIES_VIEW)]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Property>>> GetProperties()
         {
@@ -33,6 +35,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/properties/5
+        [RequirePermission(PermissionConstants.PROPERTIES_VIEW)]
         [HttpGet("{id}")]
         public async Task<ActionResult<Property>> GetProperty(int id)
         {
@@ -53,7 +56,7 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/properties
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.PROPERTIES_CREATE)]
         [HttpPost]
         public async Task<ActionResult<Property>> CreateProperty([FromBody] CreatePropertyDto dto)
         {
@@ -108,7 +111,7 @@ namespace ddacProject.Controllers
         }
 
         // PUT: api/properties/5
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.PROPERTIES_EDIT)]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateProperty(int id, [FromBody] UpdatePropertyDto dto)
         {
@@ -176,7 +179,7 @@ namespace ddacProject.Controllers
         }
 
         // DELETE: api/properties/5
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.PROPERTIES_DELETE)]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProperty(int id)
         {

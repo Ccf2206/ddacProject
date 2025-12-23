@@ -4,6 +4,8 @@ import DataTable from '../../components/DataTable';
 import ConfirmModal from '../../components/ConfirmModal';
 import SearchBar from '../../components/SearchBar';
 import { usersAPI, rolesAPI } from '../../services/api';
+import PermissionGuard from '../../components/PermissionGuard';
+import { PERMISSIONS } from '../../utils/permissions';
 
 function UsersPage() {
     const [users, setUsers] = useState([]);
@@ -97,29 +99,31 @@ function UsersPage() {
         {
             header: 'Actions',
             render: (row) => (
-                <div className="flex space-x-2">
-                    {row.status === 'Active' ? (
+                <PermissionGuard permission={PERMISSIONS.USERS_MANAGE}>
+                    <div className="flex space-x-2">
+                        {row.status === 'Active' ? (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleStatusChange(row, 'Inactive'); }}
+                                className="text-sm text-orange-600 hover:text-orange-800"
+                            >
+                                Deactivate
+                            </button>
+                        ) : (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleStatusChange(row, 'Active'); }}
+                                className="text-sm text-green-600 hover:text-green-800"
+                            >
+                                Activate
+                            </button>
+                        )}
                         <button
-                            onClick={(e) => { e.stopPropagation(); handleStatusChange(row, 'Inactive'); }}
-                            className="text-sm text-orange-600 hover:text-orange-800"
+                            onClick={(e) => { e.stopPropagation(); setSelectedUser(row); setShowDeleteModal(true); }}
+                            className="text-sm text-red-600 hover:text-red-800"
                         >
-                            Deactivate
+                            Delete
                         </button>
-                    ) : (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); handleStatusChange(row, 'Active'); }}
-                            className="text-sm text-green-600 hover:text-green-800"
-                        >
-                            Activate
-                        </button>
-                    )}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setSelectedUser(row); setShowDeleteModal(true); }}
-                        className="text-sm text-red-600 hover:text-red-800"
-                    >
-                        Delete
-                    </button>
-                </div>
+                    </div>
+                </PermissionGuard>
             )
         }
     ];
@@ -139,12 +143,14 @@ function UsersPage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-3xl font-bold text-gray-800">User Management</h2>
-                    <button
-                        onClick={() => setShowUserForm(!showUserForm)}
-                        className="btn btn-primary"
-                    >
-                        {showUserForm ? 'Cancel' : '+ New User'}
-                    </button>
+                    <PermissionGuard permission={PERMISSIONS.USERS_MANAGE}>
+                        <button
+                            onClick={() => setShowUserForm(!showUserForm)}
+                            className="btn btn-primary"
+                        >
+                            {showUserForm ? 'Cancel' : '+ New User'}
+                        </button>
+                    </PermissionGuard>
                 </div>
 
                 {/* Search Bar */}

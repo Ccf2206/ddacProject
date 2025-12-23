@@ -4,9 +4,13 @@ import PropertyForm from '../../components/PropertyForm';
 import BuildingForm from '../../components/BuildingForm';
 import ConfirmModal from '../../components/ConfirmModal';
 import SearchBar from '../../components/SearchBar';
+import PermissionGuard from '../../components/PermissionGuard';
+import { usePermissions } from '../../hooks/usePermissions';
+import { PERMISSIONS } from '../../utils/permissions';
 import { propertiesAPI, buildingsAPI } from '../../services/api';
 
 function PropertiesPage() {
+    const { canCreate, canEdit, canDelete } = usePermissions();
     const [properties, setProperties] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -127,9 +131,11 @@ function PropertiesPage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-3xl font-bold text-gray-800">Properties Management</h2>
-                    <button onClick={handleCreateProperty} className="btn btn-primary">
-                        + New Property
-                    </button>
+                    <PermissionGuard permission={PERMISSIONS.PROPERTIES_CREATE}>
+                        <button onClick={handleCreateProperty} className="btn btn-primary">
+                            + New Property
+                        </button>
+                    </PermissionGuard>
                 </div>
 
                 {/* Search Bar */}
@@ -162,18 +168,22 @@ function PropertiesPage() {
                                     </div>
                                     <div className="flex items-center space-x-2">
                                         <span className="badge badge-info">{property.buildingCount} Buildings</span>
-                                        <button
-                                            onClick={() => handleEditProperty(property)}
-                                            className="text-sm text-primary-600 hover:text-primary-800"
-                                        >
-                                            Edit
-                                        </button>
-                                        <button
-                                            onClick={() => { setDeletingItem({ type: 'property', id: property.propertyId, name: property.name }); setShowDeleteModal(true); }}
-                                            className="text-sm text-red-600 hover:text-red-800"
-                                        >
-                                            Delete
-                                        </button>
+                                        <PermissionGuard permission={PERMISSIONS.PROPERTIES_EDIT}>
+                                            <button
+                                                onClick={() => handleEditProperty(property)}
+                                                className="text-sm text-primary-600 hover:text-primary-800"
+                                            >
+                                                Edit
+                                            </button>
+                                        </PermissionGuard>
+                                        <PermissionGuard permission={PERMISSIONS.PROPERTIES_DELETE}>
+                                            <button
+                                                onClick={() => { setDeletingItem({ type: 'property', id: property.propertyId, name: property.name }); setShowDeleteModal(true); }}
+                                                className="text-sm text-red-600 hover:text-red-800"
+                                            >
+                                                Delete
+                                            </button>
+                                        </PermissionGuard>
                                     </div>
                                 </div>
 
@@ -192,12 +202,14 @@ function PropertiesPage() {
                                                 Building limit reached
                                             </span>
                                         ) : (
-                                            <button
-                                                onClick={() => handleAddBuilding(property.propertyId)}
-                                                className="text-sm text-primary-600 hover:text-primary-800"
-                                            >
-                                                + Add Building
-                                            </button>
+                                            <PermissionGuard permission={PERMISSIONS.PROPERTIES_EDIT}>
+                                                <button
+                                                    onClick={() => handleAddBuilding(property.propertyId)}
+                                                    className="text-sm text-primary-600 hover:text-primary-800"
+                                                >
+                                                    + Add Building
+                                                </button>
+                                            </PermissionGuard>
                                         )}
                                     </div>
 
@@ -221,18 +233,22 @@ function PropertiesPage() {
                                                             )}
                                                         </div>
                                                         <div className="flex flex-col space-y-1">
-                                                            <button
-                                                                onClick={() => handleEditBuilding(building, property.propertyId)}
-                                                                className="text-xs text-primary-600 hover:text-primary-800"
-                                                            >
-                                                                Edit
-                                                            </button>
-                                                            <button
-                                                                onClick={() => { setDeletingItem({ type: 'building', id: building.buildingId, name: building.name }); setShowDeleteModal(true); }}
-                                                                className="text-xs text-red-600 hover:text-red-800"
-                                                            >
-                                                                Delete
-                                                            </button>
+                                                            <PermissionGuard permission={PERMISSIONS.PROPERTIES_EDIT}>
+                                                                <button
+                                                                    onClick={() => handleEditBuilding(building, property.propertyId)}
+                                                                    className="text-xs text-primary-600 hover:text-primary-800"
+                                                                >
+                                                                    Edit
+                                                                </button>
+                                                            </PermissionGuard>
+                                                            <PermissionGuard permission={PERMISSIONS.PROPERTIES_DELETE}>
+                                                                <button
+                                                                    onClick={() => { setDeletingItem({ type: 'building', id: building.buildingId, name: building.name }); setShowDeleteModal(true); }}
+                                                                    className="text-xs text-red-600 hover:text-red-800"
+                                                                >
+                                                                    Delete
+                                                                </button>
+                                                            </PermissionGuard>
                                                         </div>
                                                     </div>
                                                 </div>

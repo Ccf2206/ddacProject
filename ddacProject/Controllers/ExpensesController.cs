@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ddacProject.Data;
 using ddacProject.Models;
 using ddacProject.DTOs;
+using ddacProject.Authorization;
 
 namespace ddacProject.Controllers
 {
@@ -20,6 +21,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/expenses
+        [RequirePermission(PermissionConstants.EXPENSES_VIEW)]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Expense>>> GetExpenses([FromQuery] int? propertyId)
         {
@@ -37,6 +39,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/expenses/5
+        [RequirePermission(PermissionConstants.EXPENSES_VIEW)]
         [HttpGet("{id}")]
         public async Task<ActionResult<Expense>> GetExpense(int id)
         {
@@ -53,7 +56,7 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/expenses
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.EXPENSES_CREATE)]
         [HttpPost]
         public async Task<ActionResult<Expense>> CreateExpense([FromBody] CreateExpenseDto dto)
         {
@@ -80,7 +83,7 @@ namespace ddacProject.Controllers
         }
 
         // PUT: api/expenses/5
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.EXPENSES_CREATE)]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateExpense(int id, [FromBody] UpdateExpenseDto dto)
         {
@@ -101,7 +104,7 @@ namespace ddacProject.Controllers
         }
 
         // DELETE: api/expenses/5
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.EXPENSES_CREATE)]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteExpense(int id)
         {

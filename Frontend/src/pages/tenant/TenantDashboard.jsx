@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Navbar from '../../components/Navbar';
+import { FaBullhorn, FaExclamationTriangle } from 'react-icons/fa';
 
 export default function TenantDashboard() {
     const [dashboardData, setDashboardData] = useState(null);
@@ -151,7 +152,10 @@ export default function TenantDashboard() {
                                             <div className="flex items-center gap-2 mb-2">
                                                 <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                                                 <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
-                                                    📢 Announcement
+                                                    New!
+                                                </span>
+                                                <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 flex items-center gap-1">
+                                                    <FaBullhorn /> Announcement
                                                 </span>
                                                 <span className="text-xs text-gray-500">
                                                     {new Date(message.sentAt).toLocaleString()}
@@ -268,7 +272,7 @@ export default function TenantDashboard() {
                                     </span>
                                 </p>
                                 {upcomingRent.isOverdue && (
-                                    <p className="text-red-600 font-semibold mt-2">⚠️ Payment is overdue!</p>
+                                    <p className="text-red-600 font-semibold mt-2 flex items-center gap-2"><FaExclamationTriangle /> Payment is overdue!</p>
                                 )}
                             </div>
                         </div>

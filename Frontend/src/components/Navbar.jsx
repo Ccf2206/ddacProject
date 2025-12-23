@@ -1,15 +1,24 @@
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useState, useRef } from 'react';
 import useAuthStore from '../stores/authStore';
-import { FaChevronDown, FaUserShield, FaBuilding, FaDollarSign, FaCog, FaChartBar, FaBars, FaTimes } from 'react-icons/fa';
+import { FaChevronDown, FaUserShield, FaBuilding, FaDollarSign, FaCog, FaChartBar, FaBars, FaTimes, FaEnvelope } from 'react-icons/fa';
+import { PERMISSIONS, hasPermission, hasAnyPermission, hasModuleAccess } from '../utils/permissions';
 
 function Navbar() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { user, logout } = useAuthStore();
+    const { user, logout, permissions } = useAuthStore();
     const [openDropdown, setOpenDropdown] = useState(null);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const closeTimeoutRef = useRef(null);
+
+    console.log('[Navbar] Current user and permissions:', { 
+        userName: user?.name,
+        userRole: user?.roleName, 
+        permissions: permissions,
+        permissionsType: typeof permissions,
+        permissionsIsArray: Array.isArray(permissions)
+    });
 
     const handleLogout = () => {
         logout();
@@ -70,97 +79,39 @@ function Navbar() {
         return links.some(link => location.pathname === link.to);
     };
 
+    // Check if user has permission for a route
+    const hasRoutePermission = (permission, isModule = false) => {
+        if (!permission) return true; // No permission required
+        
+        // Users with wildcard permission bypass all permission checks
+        if (permissions?.includes('*')) return true;
+        
+        // If this is a module-level check, use hasModuleAccess
+        // This allows access if user has ANY permission for that module
+        if (isModule) {
+            return hasModuleAccess(permissions, permission);
+        }
+        
+        // Handle array of permissions (OR logic - user needs ANY of them)
+        if (Array.isArray(permission)) {
+            return hasAnyPermission(permissions, permission);
+        }
+        
+        // Handle single permission
+        return hasPermission(permissions, permission);
+    };
+
+    // Filter links based on permissions
+    const filterLinksByPermission = (links) => {
+        return links.filter(link => hasRoutePermission(link.permission, link.module));
+    };
+
     // Organize navigation by categories
     const getNavCategories = () => {
         if (!user) return [];
 
-        if (user.roleName === 'Admin') {
-            return [
-                {
-                    name: 'Admin',
-                    icon: <FaUserShield />,
-                    links: [
-                        { to: '/admin/users', label: 'Users' },
-                        { to: '/admin/roles', label: 'Roles' },
-                        { to: '/admin/approvals', label: 'Approvals' },
-                        { to: '/admin/lease-templates', label: 'Lease Templates' },
-                        { to: '/admin/audit-logs', label: 'Audit Logs' },
-                    ]
-                },
-                {
-                    name: 'Property',
-                    icon: <FaBuilding />,
-                    links: [
-                        { to: '/staff/properties', label: 'Properties' },
-                        { to: '/staff/units', label: 'Units' },
-                        { to: '/staff/leases', label: 'Leases' },
-                    ]
-                },
-                {
-                    name: 'Financial',
-                    icon: <FaDollarSign />,
-                    links: [
-                        { to: '/staff/invoices', label: 'Invoices' },
-                        { to: '/staff/payments', label: 'Payments' },
-                        { to: '/staff/expenses', label: 'Expenses' },
-                    ]
-                },
-                {
-                    name: 'Operations',
-                    icon: <FaCog />,
-                    links: [
-                        { to: '/staff/tenants', label: 'Tenants' },
-                        { to: '/staff/maintenance', label: 'Maintenance' },
-                        { to: '/staff/messages', label: 'Messages' },
-                    ]
-                },
-                {
-                    name: 'Analytics',
-                    icon: <FaChartBar />,
-                    links: [
-                        { to: '/staff/reports', label: 'Reports' },
-                    ]
-                }
-            ];
-        } else if (user.roleName === 'Staff') {
-            return [
-                {
-                    name: 'Property',
-                    icon: <FaBuilding />,
-                    links: [
-                        { to: '/dashboard', label: 'Dashboard' },
-                        { to: '/staff/properties', label: 'Properties' },
-                        { to: '/staff/units', label: 'Units' },
-                        { to: '/staff/leases', label: 'Leases' },
-                    ]
-                },
-                {
-                    name: 'Financial',
-                    icon: <FaDollarSign />,
-                    links: [
-                        { to: '/staff/invoices', label: 'Invoices' },
-                        { to: '/staff/payments', label: 'Payments' },
-                        { to: '/staff/expenses', label: 'Expenses' },
-                    ]
-                },
-                {
-                    name: 'Operations',
-                    icon: <FaCog />,
-                    links: [
-                        { to: '/staff/tenants', label: 'Tenants' },
-                        { to: '/staff/maintenance', label: 'Maintenance' },
-                        { to: '/staff/messages', label: 'Messages' },
-                    ]
-                },
-                {
-                    name: 'Analytics',
-                    icon: <FaChartBar />,
-                    links: [
-                        { to: '/staff/reports', label: 'Reports' },
-                    ]
-                }
-            ];
-        } else if (user.roleName === 'Tenant') {
+        // Special case for Tenant - different navigation structure
+        if (user.roleName === 'Tenant') {
             return [
                 {
                     name: 'My Account',
@@ -190,7 +141,86 @@ function Navbar() {
             ];
         }
 
-        return [];
+        // Special case for Technician - no navigation tabs needed
+        if (user.roleName === 'Technician') {
+            return [];
+        }
+
+        // For all other roles (Admin, Staff, custom roles)
+        // Build navigation based on permissions
+        const categories = [];
+
+        // Admin category - only show if user has admin permissions
+        const adminLinks = filterLinksByPermission([
+            { to: '/admin/users', label: 'Users', permission: 'users.manage' },
+            { to: '/admin/roles', label: 'Roles', permission: 'roles.manage' },
+            { to: '/admin/lease-templates', label: 'Lease Templates', permission: 'lease.templates.manage' },
+            { to: '/admin/audit-logs', label: 'Audit Logs', permission: 'audit.view' },
+        ]);
+        if (adminLinks.length > 0) {
+            categories.push({
+                name: 'Admin',
+                icon: <FaUserShield />,
+                links: adminLinks
+            });
+        }
+
+        // Property category
+        const propertyLinks = filterLinksByPermission([
+            { to: '/dashboard', label: 'Dashboard', permission: 'properties', module: true },
+            { to: '/staff/properties', label: 'Properties', permission: 'properties.view' },
+            { to: '/staff/units', label: 'Units', permission: 'units.view' },
+            { to: '/staff/leases', label: 'Leases', permission: 'leases.view' },
+        ]);
+        if (propertyLinks.length > 0) {
+            categories.push({
+                name: 'Property',
+                icon: <FaBuilding />,
+                links: propertyLinks
+            });
+        }
+
+        // Financial category
+        const financialLinks = filterLinksByPermission([
+            { to: '/staff/invoices', label: 'Invoices', permission: 'invoices.view' },
+            { to: '/staff/payments', label: 'Payments', permission: 'payments.view' },
+            { to: '/staff/expenses', label: 'Expenses', permission: 'expenses.view' },
+        ]);
+        if (financialLinks.length > 0) {
+            categories.push({
+                name: 'Financial',
+                icon: <FaDollarSign />,
+                links: financialLinks
+            });
+        }
+
+        // Operations category
+        const operationsLinks = filterLinksByPermission([
+            { to: '/staff/tenants', label: 'Tenants', permission: 'tenants.view' },
+            { to: '/staff/maintenance', label: 'Maintenance', permission: ['maintenance.view.all', 'maintenance.assign', 'maintenance.signoff'] },
+            { to: '/staff/messages', label: 'Messages' }, // Messages is always accessible
+        ]);
+        if (operationsLinks.length > 0) {
+            categories.push({
+                name: 'Operations',
+                icon: <FaCog />,
+                links: operationsLinks
+            });
+        }
+
+        // Analytics category
+        const analyticsLinks = filterLinksByPermission([
+            { to: '/staff/reports', label: 'Reports', permission: ['reports.financial.view', 'reports.occupancy.view', 'reports.maintenance.view'] },
+        ]);
+        if (analyticsLinks.length > 0) {
+            categories.push({
+                name: 'Analytics',
+                icon: <FaChartBar />,
+                links: analyticsLinks
+            });
+        }
+
+        return categories;
     };
 
     const navCategories = getNavCategories();

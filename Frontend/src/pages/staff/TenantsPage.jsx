@@ -3,6 +3,8 @@ import Navbar from '../../components/Navbar';
 import DataTable from '../../components/DataTable';
 import ConfirmModal from '../../components/ConfirmModal';
 import SearchBar from '../../components/SearchBar';
+import PermissionGuard from '../../components/PermissionGuard';
+import { PERMISSIONS } from '../../utils/permissions';
 import { tenantsAPI } from '../../services/api';
 import axios from 'axios';
 
@@ -316,18 +318,22 @@ function TenantsPage() {
             header: 'Actions',
             render: (row) => (
                 <div className="flex gap-2">
-                    <button
-                        onClick={(e) => { e.stopPropagation(); handleOpenEditModal(row); }}
-                        className="text-sm text-primary-600 hover:text-primary-800"
-                    >
-                        Edit
-                    </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setSelectedTenant(row); setShowDeleteModal(true); }}
-                        className="text-sm text-red-600 hover:text-red-800"
-                    >
-                        Delete
-                    </button>
+                    <PermissionGuard permission={PERMISSIONS.TENANTS_EDIT}>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleOpenEditModal(row); }}
+                            className="text-sm text-primary-600 hover:text-primary-800"
+                        >
+                            Edit
+                        </button>
+                    </PermissionGuard>
+                    <PermissionGuard permission={PERMISSIONS.TENANTS_DELETE}>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setSelectedTenant(row); setShowDeleteModal(true); }}
+                            className="text-sm text-red-600 hover:text-red-800"
+                        >
+                            Delete
+                        </button>
+                    </PermissionGuard>
                 </div>
             )
         }
@@ -349,12 +355,14 @@ function TenantsPage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-3xl font-bold text-gray-800">Tenant Management</h2>
-                    <button
-                        onClick={handleOpenAddModal}
-                        className="btn btn-primary"
-                    >
-                        + Add Tenant
-                    </button>
+                    <PermissionGuard permission={PERMISSIONS.TENANTS_CREATE}>
+                        <button
+                            onClick={handleOpenAddModal}
+                            className="btn btn-primary"
+                        >
+                            + Add Tenant
+                        </button>
+                    </PermissionGuard>
                 </div>
 
                 {/* Search Bar */}

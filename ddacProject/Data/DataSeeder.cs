@@ -23,19 +23,19 @@ namespace ddacProject.Data
             {
                 new Role { 
                     RoleName = "Admin",
-                    Permissions = "[\"*\"]" // Admin has all permissions
+                    Permissions = "[\"*\"]" // Admin has all permissions (wildcard)
                 },
                 new Role { 
                     RoleName = "Staff",
-                    Permissions = "[\"properties.view\",\"properties.edit\",\"units.*\",\"tenants.*\",\"leases.*\",\"invoices.*\",\"payments.*\",\"expenses.*\",\"maintenance.view.all\",\"maintenance.assign\"]"
+                    Permissions = "[\"properties.view\",\"properties.create\",\"properties.edit\",\"units.view\",\"units.create\",\"units.edit\",\"tenants.view\",\"tenants.create\",\"tenants.edit\",\"leases.view\",\"leases.create\",\"leases.edit\",\"leases.terminate\",\"invoices.view\",\"invoices.create\",\"payments.view\",\"payments.create\",\"expenses.view\",\"expenses.create\",\"maintenance.view.all\",\"maintenance.assign\",\"maintenance.signoff\",\"reports.financial.view\",\"reports.occupancy.view\",\"reports.maintenance.view\",\"approvals.review\"]"
                 },
                 new Role { 
                     RoleName = "Technician",
-                    Permissions = "[\"maintenance.view.assigned\",\"maintenance.update\"]"
+                    Permissions = "[\"maintenance.view.assigned\",\"maintenance.update\",\"maintenance.escalate\"]"
                 },
                 new Role { 
                     RoleName = "Tenant",
-                    Permissions = "[\"leases.view\",\"invoices.view\",\"payments.view\",\"maintenance.create\",\"maintenance.view\"]"
+                    Permissions = "[\"leases.view\",\"invoices.view\",\"payments.view\",\"maintenance.create\"]"
                 }
             };
             await _context.Roles.AddRangeAsync(roles);

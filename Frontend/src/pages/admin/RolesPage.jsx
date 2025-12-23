@@ -4,6 +4,8 @@ import DataTable from '../../components/DataTable';
 import ConfirmModal from '../../components/ConfirmModal';
 import SearchBar from '../../components/SearchBar';
 import { rolesAPI } from '../../services/api';
+import PermissionGuard from '../../components/PermissionGuard';
+import { PERMISSIONS } from '../../utils/permissions';
 
 function RolesPage() {
     const [roles, setRoles] = useState([]);
@@ -11,6 +13,7 @@ function RolesPage() {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [selectedRole, setSelectedRole] = useState(null);
     const [showRoleForm, setShowRoleForm] = useState(false);
+    const [editingRole, setEditingRole] = useState(null);
     const [formData, setFormData] = useState({ roleName: '', permissions: [] });
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -20,9 +23,12 @@ function RolesPage() {
         Units: ['units.view', 'units.create', 'units.edit', 'units.delete', 'units.*'],
         Tenants: ['tenants.view', 'tenants.create', 'tenants.edit', 'tenants.delete', 'tenants.*'],
         Leases: ['leases.view', 'leases.create', 'leases.edit', 'leases.terminate', 'leases.*'],
-        Finance: ['invoices.view', 'invoices.create', 'payments.view', 'payments.create', 'expenses.view', 'expenses.create'],
-        Maintenance: ['maintenance.view.all', 'maintenance.view.assigned', 'maintenance.assign', 'maintenance.update', 'maintenance.create'],
-        Admin: ['users.manage', 'roles.manage', 'audit.view', '*']
+        Invoices: ['invoices.view', 'invoices.create'],
+        Payments: ['payments.view', 'payments.create'],
+        Expenses: ['expenses.view', 'expenses.create'],
+        Maintenance: ['maintenance.view.all', 'maintenance.view.assigned', 'maintenance.assign', 'maintenance.update', 'maintenance.create', 'maintenance.escalate', 'maintenance.signoff'],
+        Reports: ['reports.financial.view', 'reports.occupancy.view', 'reports.maintenance.view'],
+        Admin: ['users.manage', 'roles.manage', 'audit.view', 'lease.templates.manage', '*']
     };
 
     useEffect(() => {
@@ -40,17 +46,39 @@ function RolesPage() {
         }
     };
 
-    const handleCreateRole = async (e) => {
+    const handleSubmitRole = async (e) => {
         e.preventDefault();
         try {
-            await rolesAPI.create(formData);
+            if (editingRole) {
+                await rolesAPI.update(editingRole.roleId, formData);
+                alert('Role updated successfully!');
+            } else {
+                await rolesAPI.create(formData);
+                alert('Role created successfully!');
+            }
             setShowRoleForm(false);
+            setEditingRole(null);
             setFormData({ roleName: '', permissions: [] });
             fetchRoles();
         } catch (error) {
-            console.error('Error creating role:', error);
-            alert('Error creating role: ' + (error.response?.data?.message || error.message));
+            console.error('Error saving role:', error);
+            alert('Error saving role: ' + (error.response?.data?.message || error.message));
         }
+    };
+
+    const handleEditRole = (role) => {
+        setEditingRole(role);
+        setFormData({
+            roleName: role.roleName,
+            permissions: role.permissions || []
+        });
+        setShowRoleForm(true);
+    };
+
+    const handleCancelEdit = () => {
+        setShowRoleForm(false);
+        setEditingRole(null);
+        setFormData({ roleName: '', permissions: [] });
     };
 
     const handleDeleteRole = async () => {
@@ -95,13 +123,23 @@ function RolesPage() {
         {
             header: 'Actions',
             render: (row) => (
-                <button
-                    onClick={(e) => { e.stopPropagation(); setSelectedRole(row); setShowDeleteModal(true); }}
-                    className="text-sm text-red-600 hover:text-red-800"
-                    disabled={row.userCount > 0}
-                >
-                    {row.userCount > 0 ? 'Cannot Delete' : 'Delete'}
-                </button>
+                <PermissionGuard permission={PERMISSIONS.ROLES_MANAGE}>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleEditRole(row); }}
+                            className="text-sm text-blue-600 hover:text-blue-800"
+                        >
+                            Edit
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setSelectedRole(row); setShowDeleteModal(true); }}
+                            className="text-sm text-red-600 hover:text-red-800"
+                            disabled={row.userCount > 0}
+                        >
+                            {row.userCount > 0 ? 'Cannot Delete' : 'Delete'}
+                        </button>
+                    </div>
+                </PermissionGuard>
             )
         }
     ];
@@ -113,18 +151,20 @@ function RolesPage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="flex justify-between items-center mb-8">
                     <h2 className="text-3xl font-bold text-gray-800">Role Management</h2>
-                    <button
-                        onClick={() => setShowRoleForm(!showRoleForm)}
-                        className="btn btn-primary"
-                    >
-                        {showRoleForm ? 'Cancel' : '+ New Role'}
-                    </button>
+                    <PermissionGuard permission={PERMISSIONS.ROLES_MANAGE}>
+                        <button
+                            onClick={() => showRoleForm ? handleCancelEdit() : setShowRoleForm(true)}
+                            className="btn btn-primary"
+                        >
+                            {showRoleForm ? 'Cancel' : '+ New Role'}
+                        </button>
+                    </PermissionGuard>
                 </div>
 
                 {showRoleForm && (
                     <div className="card mb-6">
-                        <h3 className="text-lg font-semibold mb-4">Create New Role</h3>
-                        <form onSubmit={handleCreateRole}>
+                        <h3 className="text-lg font-semibold mb-4">{editingRole ? 'Edit Role' : 'Create New Role'}</h3>
+                        <form onSubmit={handleSubmitRole}>
                             <div className="mb-4">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Role Name</label>
                                 <input
@@ -132,8 +172,12 @@ function RolesPage() {
                                     value={formData.roleName}
                                     onChange={(e) => setFormData({ ...formData, roleName: e.target.value })}
                                     className="input"
+                                    disabled={editingRole !== null}
                                     required
                                 />
+                                {editingRole && (
+                                    <p className="text-xs text-gray-500 mt-1">Role name cannot be changed after creation</p>
+                                )}
                             </div>
 
                             <div className="mb-4">
@@ -160,7 +204,18 @@ function RolesPage() {
                                 </div>
                             </div>
 
-                            <button type="submit" className="btn btn-primary">Create Role</button>
+                            <div className="flex gap-3">
+                                <button type="submit" className="btn btn-primary">
+                                    {editingRole ? 'Update Role' : 'Create Role'}
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={handleCancelEdit}
+                                    className="btn btn-secondary"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
                         </form>
                     </div>
                 )}
@@ -195,10 +250,16 @@ function RolesPage() {
                 <ConfirmModal
                     isOpen={showDeleteModal}
                     title="Delete Role"
-                    message={`Are you sure you want to delete the ${selectedRole?.roleName} role? This action cannot be undone.`}
-                    onConfirm={handleDeleteRole}
+                    message={
+                        selectedRole?.userCount > 0
+                            ? `Cannot delete the ${selectedRole?.roleName} role because it has ${selectedRole?.userCount} user(s) assigned. Please reassign or remove these users before deleting the role.`
+                            : `Are you sure you want to delete the ${selectedRole?.roleName} role? This action cannot be undone.`
+                    }
+                    onConfirm={selectedRole?.userCount > 0 ? undefined : handleDeleteRole}
                     onCancel={() => { setShowDeleteModal(false); setSelectedRole(null); }}
                     danger={true}
+                    confirmText={selectedRole?.userCount > 0 ? undefined : "Delete"}
+                    cancelText={selectedRole?.userCount > 0 ? "Close" : "Cancel"}
                 />
             </div>
         </div>

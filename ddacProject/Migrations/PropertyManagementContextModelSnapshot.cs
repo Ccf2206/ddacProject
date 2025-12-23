@@ -411,6 +411,9 @@ namespace ddacProject.Migrations
                     b.Property<int?>("CompletedByStaffId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("CompletedDate")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 

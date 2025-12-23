@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import SearchBar from '../../components/SearchBar';
 import ConfirmModal from '../../components/ConfirmModal';
+import PermissionGuard from '../../components/PermissionGuard';
+import { PERMISSIONS } from '../../utils/permissions';
 import { leasesAPI, tenantsAPI, unitsAPI } from '../../services/api';
 import { FaFileContract, FaPlus, FaSync, FaBan } from 'react-icons/fa';
 
@@ -212,12 +214,14 @@ function LeasesPage() {
                     <h2 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
                         <FaFileContract /> Leases Management
                     </h2>
-                    <button
-                        onClick={() => setShowCreateModal(true)}
-                        className="btn btn-primary flex items-center gap-2"
-                    >
-                        <FaPlus /> Create Lease
-                    </button>
+                    <PermissionGuard permission={PERMISSIONS.LEASES_CREATE}>
+                        <button
+                            onClick={() => setShowCreateModal(true)}
+                            className="btn btn-primary flex items-center gap-2"
+                        >
+                            <FaPlus /> Create Lease
+                        </button>
+                    </PermissionGuard>
                 </div>
 
                 {/* Filters and Search */}
@@ -304,23 +308,27 @@ function LeasesPage() {
                                                 <div className="flex gap-2">
                                                     {lease.status === 'Active' && (
                                                         <>
-                                                            <button
-                                                                onClick={() => openRenewModal(lease)}
-                                                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                                                                title="Renew Lease"
-                                                            >
-                                                                <FaSync /> Renew
-                                                            </button>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setSelectedLease(lease);
-                                                                    setShowTerminateModal(true);
-                                                                }}
-                                                                className="text-red-600 hover:text-red-800 flex items-center gap-1"
-                                                                title="Terminate Lease"
-                                                            >
-                                                                <FaBan /> Terminate
-                                                            </button>
+                                                            <PermissionGuard permission={PERMISSIONS.LEASES_EDIT}>
+                                                                <button
+                                                                    onClick={() => openRenewModal(lease)}
+                                                                    className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                                                    title="Renew Lease"
+                                                                >
+                                                                    <FaSync /> Renew
+                                                                </button>
+                                                            </PermissionGuard>
+                                                            <PermissionGuard permission={PERMISSIONS.LEASES_TERMINATE}>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedLease(lease);
+                                                                        setShowTerminateModal(true);
+                                                                    }}
+                                                                    className="text-red-600 hover:text-red-800 flex items-center gap-1"
+                                                                    title="Terminate Lease"
+                                                                >
+                                                                    <FaBan /> Terminate
+                                                                </button>
+                                                            </PermissionGuard>
                                                         </>
                                                     )}
                                                     {lease.status !== 'Active' && (

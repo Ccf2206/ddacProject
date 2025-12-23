@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ddacProject.Data;
 using ddacProject.Models;
 using System.Security.Claims;
+using ddacProject.Authorization;
 
 namespace ddacProject.Controllers
 {
@@ -20,6 +21,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/invoices
+        [RequirePermission(PermissionConstants.INVOICES_VIEW)]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<object>>> GetInvoices([FromQuery] string? status)
         {
@@ -81,6 +83,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/invoices/5
+        [RequirePermission(PermissionConstants.INVOICES_VIEW)]
         [HttpGet("{id}")]
         public async Task<ActionResult<object>> GetInvoice(int id)
         {
@@ -124,7 +127,7 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/invoices
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.INVOICES_CREATE)]
         [HttpPost]
         public async Task<ActionResult<Invoice>> CreateInvoice([FromBody] CreateInvoiceDto dto)
         {
@@ -164,7 +167,7 @@ namespace ddacProject.Controllers
         }
 
         // PUT: api/invoices/5/status
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.INVOICES_CREATE)]
         [HttpPut("{id}/status")]
         public async Task<IActionResult> UpdateInvoiceStatus(int id, [FromBody] UpdateInvoiceStatusDto dto)
         {
@@ -221,7 +224,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/invoices/overdue
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.INVOICES_VIEW)]
         [HttpGet("overdue")]
         public async Task<ActionResult<IEnumerable<Invoice>>> GetOverdueInvoices()
         {
@@ -239,7 +242,7 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/invoices/5/send-reminder
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.INVOICES_CREATE)]
         [HttpPost("{id}/send-reminder")]
         public async Task<IActionResult> SendOverdueReminder(int id)
         {
@@ -273,7 +276,7 @@ namespace ddacProject.Controllers
         }
 
         // DELETE: api/invoices/cleanup-terminated
-        [Authorize(Roles = "Admin")]
+        [RequirePermission(PermissionConstants.INVOICES_CREATE)]
         [HttpDelete("cleanup-terminated")]
         public async Task<ActionResult<object>> CleanupTerminatedLeaseInvoices()
         {

@@ -3,6 +3,8 @@ import Navbar from '../../components/Navbar';
 import SearchBar from '../../components/SearchBar';
 import axios from 'axios';
 import { FaFileContract, FaCheckCircle, FaTimes } from 'react-icons/fa';
+import PermissionGuard from '../../components/PermissionGuard';
+import { PERMISSIONS } from '../../utils/permissions';
 
 function LeaseTemplatesPage() {
     const [templates, setTemplates] = useState([]);
@@ -127,12 +129,14 @@ function LeaseTemplatesPage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="flex justify-between items-center mb-8">
                     <h2 className="text-3xl font-bold text-gray-800 flex items-center gap-2"><FaFileContract /> Lease Templates Management</h2>
-                    <button
-                        onClick={() => setShowForm(!showForm)}
-                        className="btn btn-primary"
-                    >
-                        {showForm ? 'Cancel' : '+ Create Template'}
-                    </button>
+                    <PermissionGuard permission={PERMISSIONS.LEASE_TEMPLATES_MANAGE}>
+                        <button
+                            onClick={() => setShowForm(!showForm)}
+                            className="btn btn-primary"
+                        >
+                            {showForm ? 'Cancel' : '+ Create Template'}
+                        </button>
+                    </PermissionGuard>
                 </div>
 
                 {/* Template Form */}
@@ -259,20 +263,22 @@ function LeaseTemplatesPage() {
                                                 </p>
                                             )}
                                         </div>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleEdit(template)}
-                                                className="btn btn-sm btn-primary"
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeactivate(template.templateId)}
-                                                className="btn btn-sm btn-danger"
-                                            >
-                                                Deactivate
-                                            </button>
-                                        </div>
+                                        <PermissionGuard permission={PERMISSIONS.LEASE_TEMPLATES_MANAGE}>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => handleEdit(template)}
+                                                    className="btn btn-sm btn-primary"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeactivate(template.templateId)}
+                                                    className="btn btn-sm btn-danger"
+                                                >
+                                                    Deactivate
+                                                </button>
+                                            </div>
+                                        </PermissionGuard>
                                     </div>
 
                                     {/* Template Preview */}

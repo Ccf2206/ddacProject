@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ddacProject.Data;
 using ddacProject.Models;
 using System.Security.Claims;
+using ddacProject.Authorization;
 
 namespace ddacProject.Controllers
 {
@@ -22,6 +23,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/leases
+        [RequirePermission(PermissionConstants.LEASES_VIEW)]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Lease>>> GetLeases([FromQuery] string? status)
         {
@@ -58,6 +60,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/leases/5
+        [RequirePermission(PermissionConstants.LEASES_VIEW)]
         [HttpGet("{id}")]
         public async Task<ActionResult<Lease>> GetLease(int id)
         {
@@ -81,7 +84,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/leases/expiring
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.LEASES_VIEW)]
         [HttpGet("expiring")]
         public async Task<ActionResult<IEnumerable<Lease>>> GetExpiringLeases([FromQuery] int daysAhead = 30)
         {
@@ -101,7 +104,7 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/leases
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.LEASES_CREATE)]
         [HttpPost]
         public async Task<ActionResult<Lease>> CreateLease([FromBody] CreateLeaseDto dto)
         {
@@ -178,7 +181,7 @@ namespace ddacProject.Controllers
         }
 
         // PUT: api/leases/5
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.LEASES_EDIT)]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateLease(int id, [FromBody] UpdateLeaseDto dto)
         {
@@ -231,7 +234,7 @@ namespace ddacProject.Controllers
         }
 
         // PUT: api/leases/5/terminate
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.LEASES_TERMINATE)]
         [HttpPut("{id}/terminate")]
         public async Task<ActionResult<object>> TerminateLease(int id)
         {
@@ -307,7 +310,7 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/leases/5/signed-copy
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.LEASES_EDIT)]
         [HttpPost("{id}/signed-copy")]
         public async Task<IActionResult> UploadSignedCopy(int id, [FromForm] IFormFile file)
         {

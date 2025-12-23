@@ -2,6 +2,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using ddacProject.Models;
 
 namespace ddacProject.Services
@@ -20,7 +21,7 @@ namespace ddacProject.Services
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-            var claims = new[]
+            var claimsList = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
@@ -29,10 +30,30 @@ namespace ddacProject.Services
                 new Claim("RoleId", user.RoleId.ToString())
             };
 
+            // Add permissions from role
+            if (!string.IsNullOrEmpty(user.Role.Permissions))
+            {
+                try
+                {
+                    var permissions = JsonSerializer.Deserialize<List<string>>(user.Role.Permissions);
+                    if (permissions != null)
+                    {
+                        foreach (var permission in permissions)
+                        {
+                            claimsList.Add(new Claim("Permission", permission));
+                        }
+                    }
+                }
+                catch
+                {
+                    // If deserialization fails, continue without permissions
+                }
+            }
+
             var token = new JwtSecurityToken(
                 issuer: _configuration["Jwt:Issuer"],
                 audience: _configuration["Jwt:Audience"],
-                claims: claims,
+                claims: claimsList,
                 expires: DateTime.UtcNow.AddHours(Convert.ToDouble(_configuration["Jwt:ExpiryInHours"])),
                 signingCredentials: credentials
             );

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ddacProject.Data;
 using ddacProject.Models;
 using ddacProject.DTOs;
+using ddacProject.Authorization;
 
 namespace ddacProject.Controllers
 {
@@ -22,6 +23,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/units
+        [RequirePermission(PermissionConstants.UNITS_VIEW)]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Unit>>> GetUnits([FromQuery] string? status, [FromQuery] int? propertyId, [FromQuery] bool? availableForTenant)
         {
@@ -55,6 +57,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/units/5
+        [RequirePermission(PermissionConstants.UNITS_VIEW)]
         [HttpGet("{id}")]
         public async Task<ActionResult<Unit>> GetUnit(int id)
         {
@@ -77,7 +80,7 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/units
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.UNITS_CREATE)]
         [HttpPost]
         public async Task<ActionResult<Unit>> CreateUnit([FromBody] CreateUnitDto dto)
         {
@@ -120,7 +123,7 @@ namespace ddacProject.Controllers
         }
 
         // PUT: api/units/5
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.UNITS_EDIT)]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateUnit(int id, [FromBody] UpdateUnitDto dto)
         {
@@ -146,7 +149,7 @@ namespace ddacProject.Controllers
         }
 
         // PUT: api/units/5/status
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.UNITS_EDIT)]
         [HttpPut("{id}/status")]
         public async Task<IActionResult> UpdateUnitStatus(int id, [FromBody] UpdateStatusRequest request)
         {
@@ -165,7 +168,7 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/units/5/photos
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.UNITS_EDIT)]
         [HttpPost("{id}/photos")]
         public async Task<IActionResult> UploadUnitPhoto(int id, [FromForm] IFormFile file, [FromForm] bool isPrimary = false)
         {
@@ -229,7 +232,7 @@ namespace ddacProject.Controllers
         }
 
         // DELETE: api/units/5/photos/1
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.UNITS_EDIT)]
         [HttpDelete("{unitId}/photos/{photoId}")]
         public async Task<IActionResult> DeleteUnitPhoto(int unitId, int photoId)
         {
@@ -255,7 +258,7 @@ namespace ddacProject.Controllers
         }
 
         // DELETE: api/units/5
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.UNITS_DELETE)]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUnit(int id)
         {

@@ -3,6 +3,8 @@ import Navbar from '../../components/Navbar';
 import SearchBar from '../../components/SearchBar';
 import axios from 'axios';
 import { FaCheckCircle, FaTimes, FaCheck } from 'react-icons/fa';
+import PermissionGuard from '../../components/PermissionGuard';
+import { PERMISSIONS } from '../../utils/permissions';
 
 function ApprovalsPage() {
     const [approvals, setApprovals] = useState([]);
@@ -217,12 +219,14 @@ function ApprovalsPage() {
                                         </div>
 
                                         {approval.status === 'Pending' && (
-                                            <button
-                                                onClick={() => openReviewModal(approval)}
-                                                className="btn btn-primary btn-sm"
-                                            >
-                                                Review
-                                            </button>
+                                            <PermissionGuard permission={PERMISSIONS.APPROVALS_REVIEW}>
+                                                <button
+                                                    onClick={() => openReviewModal(approval)}
+                                                    className="btn btn-primary btn-sm"
+                                                >
+                                                    Review
+                                                </button>
+                                            </PermissionGuard>
                                         )}
                                     </div>
 
@@ -328,19 +332,19 @@ function ApprovalsPage() {
                             <div className="flex gap-3">
                                 <button
                                     onClick={handleApprove}
-                                    className="btn btn-success flex-1 flex items-center justify-center gap-1"
+                                    className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors duration-200"
                                 >
-                                    <FaCheck /> Approve
+                                    Approve
                                 </button>
                                 <button
                                     onClick={handleReject}
-                                    className="btn btn-danger flex-1 flex items-center justify-center gap-1"
+                                    className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors duration-200"
                                 >
-                                    <FaTimes /> Reject
+                                    Reject
                                 </button>
                                 <button
                                     onClick={() => setShowReviewModal(false)}
-                                    className="btn btn-secondary"
+                                    className="px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors duration-200"
                                 >
                                     Cancel
                                 </button>

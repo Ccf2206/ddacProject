@@ -21,6 +21,13 @@ namespace ddacProject.DTOs
         public int RoleId { get; set; }
     }
 
+    public class AuthRoleDto
+    {
+        public int RoleId { get; set; }
+        public string RoleName { get; set; } = string.Empty;
+        public string Permissions { get; set; } = string.Empty;
+    }
+
     public class UserDto
     {
         public int UserId { get; set; }
@@ -31,5 +38,14 @@ namespace ddacProject.DTOs
         public string Status { get; set; } = string.Empty;
         public string RoleName { get; set; } = string.Empty;
         public int RoleId { get; set; }
+        public AuthRoleDto? Role { get; set; }
     }
+
+    //Duplicated RoleDto class caused an error
+    /*public class RoleDto
+    {
+        public int RoleId { get; set; }
+        public string RoleName { get; set; } = string.Empty;
+        public string? Permissions { get; set; }
+    }*/
 }

@@ -113,14 +113,6 @@ namespace ddacProject.Controllers
         [HttpGet("{id}/details")]
         public async Task<ActionResult<MessageDetailsDto>> GetMessageDetails(int id)
         {
-            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
-            
-            // Only Admin/Staff can view message details
-            if (userRole != "Admin" && userRole != "Staff")
-            {
-                return Forbid();
-            }
-
             // Get all messages with the same title and approximate sent time (grouped messages)
             var firstMessage = await _context.Messages
                 .Include(m => m.Sender)
@@ -198,7 +190,6 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/messages
-        [Authorize(Roles = "Admin,Staff")]
         [HttpPost]
         public async Task<ActionResult<MessageResponseDto>> SendMessage([FromBody] CreateMessageDto dto)
         {

@@ -12,6 +12,7 @@ namespace ddacProject.Models
         public bool EscalatedToStaff { get; set; } = false;
         public string? EscalationNotes { get; set; }
         public int? CompletedByStaffId { get; set; }
+        public DateTime? CompletedDate { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
 

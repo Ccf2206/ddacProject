@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import axios from 'axios';
 import { FaChartBar, FaDollarSign, FaHome, FaWrench, FaExclamationTriangle, FaPrint, FaFileDownload } from 'react-icons/fa';
+import PermissionGuard from '../../components/PermissionGuard';
+import { PERMISSIONS } from '../../utils/permissions';
 
 function ReportsPage() {
     const [loading, setLoading] = useState(true);
@@ -163,13 +165,15 @@ function ReportsPage() {
                     <div className="card mb-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-2xl font-semibold flex items-center gap-2"><FaDollarSign /> Financial Summary</h3>
-                            <button
-                                onClick={() => handleExport('financial')}
-                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 print:hidden"
-                                title="Export as CSV"
-                            >
-                                <FaFileDownload /> Export CSV
-                            </button>
+                            <PermissionGuard permission={PERMISSIONS.REPORTS_FINANCIAL_VIEW}>
+                                <button
+                                    onClick={() => handleExport('financial')}
+                                    className="text-blue-600 hover:text-blue-800 flex items-center gap-1 print:hidden"
+                                    title="Export as CSV"
+                                >
+                                    <FaFileDownload /> Export CSV
+                                </button>
+                            </PermissionGuard>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-green-50 p-4 rounded-lg">
@@ -211,13 +215,15 @@ function ReportsPage() {
                     <div className="card mb-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-2xl font-semibold flex items-center gap-2"><FaHome /> Occupancy Statistics</h3>
-                            <button
-                                onClick={() => handleExport('occupancy')}
-                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 print:hidden"
-                                title="Export as CSV"
-                            >
-                                <FaFileDownload /> Export CSV
-                            </button>
+                            <PermissionGuard permission={PERMISSIONS.REPORTS_OCCUPANCY_VIEW}>
+                                <button
+                                    onClick={() => handleExport('occupancy')}
+                                    className="text-blue-600 hover:text-blue-800 flex items-center gap-1 print:hidden"
+                                    title="Export as CSV"
+                                >
+                                    <FaFileDownload /> Export CSV
+                                </button>
+                            </PermissionGuard>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                             <div className="bg-blue-50 p-4 rounded-lg">
@@ -276,13 +282,15 @@ function ReportsPage() {
                     <div className="card">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-2xl font-semibold flex items-center gap-2"><FaWrench /> Maintenance Trends</h3>
-                            <button
-                                onClick={() => handleExport('maintenance')}
-                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 print:hidden"
-                                title="Export as CSV"
-                            >
-                                <FaFileDownload /> Export CSV
-                            </button>
+                            <PermissionGuard permission={PERMISSIONS.REPORTS_MAINTENANCE_VIEW}>
+                                <button
+                                    onClick={() => handleExport('maintenance')}
+                                    className="text-blue-600 hover:text-blue-800 flex items-center gap-1 print:hidden"
+                                    title="Export as CSV"
+                                >
+                                    <FaFileDownload /> Export CSV
+                                </button>
+                            </PermissionGuard>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-yellow-50 p-4 rounded-lg">

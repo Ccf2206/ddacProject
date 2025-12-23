@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Navbar from '../../components/Navbar';
+import { FaExclamationTriangle } from 'react-icons/fa';
 
 export default function TenantPayments() {
     const [invoices, setInvoices] = useState([]);
@@ -473,8 +474,8 @@ export default function TenantPayments() {
 
                                 {selectedInvoice.invoice.isOverdue && selectedInvoice.invoice.overdueReminderCount > 0 && (
                                     <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                                        <p className="text-red-800 font-medium">
-                                            ⚠️ {selectedInvoice.invoice.overdueReminderCount} reminder(s) sent
+                                        <p className="text-red-800 font-medium flex items-center gap-2">
+                                            <FaExclamationTriangle /> {selectedInvoice.invoice.overdueReminderCount} reminder(s) sent
                                         </p>
                                         {selectedInvoice.invoice.lastReminderSentAt && (
                                             <p className="text-red-600 text-sm mt-1">

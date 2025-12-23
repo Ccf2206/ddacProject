@@ -5,6 +5,7 @@ using ddacProject.Data;
 using ddacProject.Models;
 using ddacProject.DTOs;
 using System.Security.Claims;
+using ddacProject.Authorization;
 
 namespace ddacProject.Controllers
 {
@@ -23,6 +24,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/payments
+        [RequirePermission(PermissionConstants.PAYMENTS_VIEW)]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<object>>> GetPayments()
         {
@@ -89,6 +91,7 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/payments/5
+        [RequirePermission(PermissionConstants.PAYMENTS_VIEW)]
         [HttpGet("{id}")]
         public async Task<ActionResult<Payment>> GetPayment(int id)
         {
@@ -111,7 +114,7 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/payments
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.PAYMENTS_CREATE)]
         [HttpPost]
         public async Task<ActionResult<Payment>> RecordPayment([FromBody] CreatePaymentDto dto)
         {
@@ -275,7 +278,7 @@ namespace ddacProject.Controllers
         }
 
         // PUT: api/payments/5/approve
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.PAYMENTS_CREATE)]
         [HttpPut("{id}/approve")]
         public async Task<IActionResult> ApprovePayment(int id, [FromBody] ApprovePaymentDto dto)
         {

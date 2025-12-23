@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Navbar from '../../components/Navbar';
 import { maintenanceAPI } from '../../services/api';
 import axios from 'axios';
@@ -9,6 +9,10 @@ function TechnicianDashboard() {
     const [loading, setLoading] = useState(true);
     const [selectedTask, setSelectedTask] = useState(null);
     const [showUpdateModal, setShowUpdateModal] = useState(false);
+    const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [requestDetails, setRequestDetails] = useState(null);
+    const [selectedPhoto, setSelectedPhoto] = useState(null);
+    const [showPhotoModal, setShowPhotoModal] = useState(false);
     const [updateForm, setUpdateForm] = useState({
         notes: '',
         costOfParts: '',
@@ -17,6 +21,8 @@ function TechnicianDashboard() {
     const [beforePhoto, setBeforePhoto] = useState(null);
     const [afterPhoto, setAfterPhoto] = useState(null);
     const [uploading, setUploading] = useState(false);
+    const beforePhotoRef = useRef(null);
+    const afterPhotoRef = useRef(null);
 
     useEffect(() => {
         fetchRequests();
@@ -33,13 +39,36 @@ function TechnicianDashboard() {
         }
     };
 
-    const handleOpenUpdateModal = (task) => {
+    const handleOpenUpdateModal = async (task) => {
         setSelectedTask(task);
-        setUpdateForm({
-            notes: '',
-            costOfParts: '',
-            status: task.status
-        });
+        
+        // Fetch full details to get updates
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get(
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${task.maintenanceRequestId}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            const details = response.data;
+            const latestUpdate = details.maintenanceUpdates && details.maintenanceUpdates.length > 0 
+                ? details.maintenanceUpdates[details.maintenanceUpdates.length - 1] 
+                : null;
+            
+            setUpdateForm({
+                notes: latestUpdate?.notes || '',
+                costOfParts: latestUpdate?.costOfParts || '',
+                status: task.status
+            });
+        } catch (error) {
+            console.error('Error fetching task details:', error);
+            setUpdateForm({
+                notes: '',
+                costOfParts: '',
+                status: task.status
+            });
+        }
+        
         setShowUpdateModal(true);
     };
 
@@ -55,6 +84,8 @@ function TechnicianDashboard() {
         
         try {
             const token = localStorage.getItem('token');
+            
+            // 1. Submit the update
             await axios.post(
                 `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${selectedTask.maintenanceRequestId}/update`,
                 {
@@ -65,8 +96,48 @@ function TechnicianDashboard() {
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
+            // 2. Upload before photo if selected
+            if (beforePhoto) {
+                const formData = new FormData();
+                formData.append('file', beforePhoto);
+                formData.append('type', 'Initial');
+
+                await axios.post(
+                    `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${selectedTask.maintenanceRequestId}/photos`,
+                    formData,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'multipart/form-data'
+                        }
+                    }
+                );
+            }
+
+            // 3. Upload after photo if selected
+            if (afterPhoto) {
+                const formData = new FormData();
+                formData.append('file', afterPhoto);
+                formData.append('type', 'Completed');
+
+                await axios.post(
+                    `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${selectedTask.maintenanceRequestId}/photos`,
+                    formData,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'multipart/form-data'
+                        }
+                    }
+                );
+            }
+
             alert('Task updated successfully!');
             setShowUpdateModal(false);
+            setBeforePhoto(null);
+            setAfterPhoto(null);
+            if (beforePhotoRef.current) beforePhotoRef.current.value = '';
+            if (afterPhotoRef.current) afterPhotoRef.current.value = '';
             fetchRequests();
         } catch (error) {
             console.error('Error updating task:', error);
@@ -113,7 +184,7 @@ function TechnicianDashboard() {
             const token = localStorage.getItem('token');
             await axios.post(
                 `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${taskId}/escalate`,
-                { reason },
+                { Notes: reason },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
@@ -146,6 +217,32 @@ function TechnicianDashboard() {
             console.error('Error completing task:', error);
             alert('Error completing task');
         }
+    };
+
+    const handleViewDetails = async (request) => {
+        console.log('[DEBUG] handleViewDetails: Viewing request:', request);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get(
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${request.maintenanceRequestId}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            console.log('[DEBUG] handleViewDetails: Success response:', response.data);
+            setRequestDetails(response.data);
+            setShowDetailsModal(true);
+        } catch (error) {
+            console.error('[ERROR] handleViewDetails:', error);
+            console.error('[ERROR] handleViewDetails response:', error.response?.data);
+            alert('Error fetching request details: ' + (error.response?.data?.message || error.message));
+        }
+    };
+
+    const handlePhotoClick = (photoUrl) => {
+        // Extract filename from URL and use API endpoint
+        const filename = photoUrl.split('/').pop();
+        const fullPhotoUrl = `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/photo/${filename}`;
+        setSelectedPhoto(fullPhotoUrl);
+        setShowPhotoModal(true);
     };
 
     const getPriorityColor = (priority) => {
@@ -204,14 +301,17 @@ function TechnicianDashboard() {
                             {pendingRequests.map((request) => (
                                 <div key={request.maintenanceRequestId} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
                                     <div className="flex justify-between items-start mb-3">
-                                        <div>
-                                            <h4 className="font-semibold text-gray-800 text-lg">{request.issueType}</h4>
-                                            <p className="text-sm text-gray-600">Unit: {request.unit?.unitNumber || 'N/A'}</p>
-                                            <p className="text-sm text-gray-600">
-                                                Tenant: {request.tenant?.user?.name || 'N/A'}
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-gray-800 text-xl mb-2">{request.issueType}</h4>
+                                            <p className="text-gray-700 text-sm mb-3">
+                                                {request.description && request.description.trim() ? request.description : <span className="italic text-gray-400">None</span>}
                                             </p>
+                                            <div className="flex gap-4 text-sm text-gray-600">
+                                                <p><strong>Tenant:</strong> {request.tenant?.user?.name || 'N/A'}</p>
+                                                <p><strong>Unit:</strong> {request.unit?.unitNumber || 'N/A'}</p>
+                                            </div>
                                         </div>
-                                        <div className="flex flex-col gap-2">
+                                        <div className="flex flex-col gap-2 ml-4">
                                             <span className={`badge ${getPriorityColor(request.priority)}`}>
                                                 {request.priority}
                                             </span>
@@ -224,13 +324,17 @@ function TechnicianDashboard() {
                                         </div>
                                     </div>
 
-                                    <p className="text-gray-700 mb-4">{request.description}</p>
-
                                     <div className="flex justify-between items-center text-sm border-t pt-3">
                                         <span className="text-gray-500">
                                             📅 Reported: {new Date(request.createdAt).toLocaleDateString()}
                                         </span>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2 flex-wrap">
+                                            <button
+                                                onClick={() => handleViewDetails(request)}
+                                                className="btn btn-info btn-sm"
+                                            >
+                                                View Details
+                                            </button>
                                             <button
                                                 onClick={() => handleOpenUpdateModal(request)}
                                                 className="btn btn-primary btn-sm flex items-center gap-1"
@@ -269,16 +373,30 @@ function TechnicianDashboard() {
                     {completedRequests.length > 0 ? (
                         <div className="space-y-3">
                             {completedRequests.map((request) => (
-                                <div key={request.maintenanceRequestId} className="p-3 bg-green-50 rounded-lg border border-green-200">
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                            <p className="font-medium text-gray-800">{request.issueType}</p>
-                                            <p className="text-sm text-gray-600">Unit {request.unit?.unitNumber || 'N/A'}</p>
+                                <div key={request.maintenanceRequestId} className="p-4 bg-green-50 rounded-lg border border-green-200">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-gray-800 text-xl mb-2">{request.issueType}</h4>
+                                            <p className="text-gray-700 text-sm mb-3">
+                                                {request.description && request.description.trim() ? request.description : <span className="italic text-gray-400">None</span>}
+                                            </p>
+                                            <div className="flex gap-4 text-sm text-gray-600 mb-2">
+                                                <p><strong>Tenant:</strong> {request.tenant?.user?.name || 'N/A'}</p>
+                                                <p><strong>Unit:</strong> {request.unit?.unitNumber || 'N/A'}</p>
+                                            </div>
                                             <p className="text-xs text-gray-500">
                                                 Completed: {new Date(request.updatedAt).toLocaleDateString()}
                                             </p>
                                         </div>
-                                        <span className="badge badge-success flex items-center gap-1"><FaCheck /> Completed</span>
+                                        <div className="flex items-center gap-2 ml-4">
+                                            <button
+                                                onClick={() => handleViewDetails(request)}
+                                                className="btn btn-info btn-sm"
+                                            >
+                                                View Details
+                                            </button>
+                                            <span className="badge badge-success flex items-center gap-1"><FaCheck /> Completed</span>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
@@ -364,21 +482,12 @@ function TechnicianDashboard() {
                                                 Before Photo
                                             </label>
                                             <input
+                                                ref={beforePhotoRef}
                                                 type="file"
                                                 accept="image/*"
                                                 onChange={(e) => setBeforePhoto(e.target.files[0])}
                                                 className="input text-sm"
                                             />
-                                            {beforePhoto && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handlePhotoUpload(selectedTask.maintenanceRequestId, beforePhoto, 'Initial')}
-                                                    disabled={uploading}
-                                                    className="btn btn-sm btn-primary mt-2 w-full"
-                                                >
-                                                    {uploading ? 'Uploading...' : 'Upload Before Photo'}
-                                                </button>
-                                            )}
                                         </div>
 
                                         {/* After Photo */}
@@ -387,21 +496,12 @@ function TechnicianDashboard() {
                                                 After Photo
                                             </label>
                                             <input
+                                                ref={afterPhotoRef}
                                                 type="file"
                                                 accept="image/*"
                                                 onChange={(e) => setAfterPhoto(e.target.files[0])}
                                                 className="input text-sm"
                                             />
-                                            {afterPhoto && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handlePhotoUpload(selectedTask.maintenanceRequestId, afterPhoto, 'Completed')}
-                                                    disabled={uploading}
-                                                    className="btn btn-sm btn-success mt-2 w-full"
-                                                >
-                                                    {uploading ? 'Uploading...' : 'Upload After Photo'}
-                                                </button>
-                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -413,13 +513,215 @@ function TechnicianDashboard() {
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => setShowUpdateModal(false)}
+                                        onClick={() => {
+                                            setShowUpdateModal(false);
+                                            setBeforePhoto(null);
+                                            setAfterPhoto(null);
+                                            if (beforePhotoRef.current) beforePhotoRef.current.value = '';
+                                            if (afterPhotoRef.current) afterPhotoRef.current.value = '';
+                                        }}
                                         className="btn btn-secondary flex-1"
                                     >
                                         Cancel
                                     </button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* View Details Modal */}
+            {showDetailsModal && requestDetails && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="p-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-2xl font-bold">Maintenance Request Details</h3>
+                                <button
+                                    onClick={() => {
+                                        setShowDetailsModal(false);
+                                        setRequestDetails(null);
+                                    }}
+                                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                                >
+                                    ×
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                {/* Request ID and Status */}
+                                <div className="flex items-center gap-3">
+                                    <h4 className="text-xl font-semibold">Request #{requestDetails.maintenanceRequestId}</h4>
+                                    <span className={`badge ${getStatusColor(requestDetails.status)}`}>
+                                        {requestDetails.status}
+                                    </span>
+                                    <span className={`badge ${getPriorityColor(requestDetails.priority)}`}>
+                                        {requestDetails.priority} Priority
+                                    </span>
+                                    {requestDetails.escalatedToStaff && (
+                                        <span className="badge bg-red-100 text-red-800">🚨 Escalated</span>
+                                    )}
+                                </div>
+
+                                {/* Property & Building Info */}
+                                <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded">
+                                    <div>
+                                        <p className="text-sm text-gray-600 font-medium">Property</p>
+                                        <p className="text-gray-800">{requestDetails.unit?.floor?.building?.property?.name || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600 font-medium">Building</p>
+                                        <p className="text-gray-800">{requestDetails.unit?.floor?.building?.name || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600 font-medium">Floor</p>
+                                        <p className="text-gray-800">{requestDetails.unit?.floor?.floorNumber || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600 font-medium">Unit</p>
+                                        <p className="text-gray-800">{requestDetails.unit?.unitNumber || 'N/A'}</p>
+                                    </div>
+                                </div>
+
+                                {/* Tenant Info */}
+                                <div className="bg-blue-50 p-4 rounded">
+                                    <p className="text-sm text-gray-600 font-medium mb-2">Tenant Information</p>
+                                    <p className="text-gray-800"><strong>Name:</strong> {requestDetails.tenant?.user?.name || 'N/A'}</p>
+                                    <p className="text-gray-800"><strong>Email:</strong> {requestDetails.tenant?.user?.email || 'N/A'}</p>
+                                    <p className="text-gray-800"><strong>Phone:</strong> {requestDetails.tenant?.user?.phoneNumber || 'N/A'}</p>
+                                </div>
+
+                                {/* Issue Details */}
+                                <div>
+                                    <p className="text-sm text-gray-600 font-medium mb-1">Issue Type</p>
+                                    <p className="text-gray-800 text-lg font-semibold">{requestDetails.issueType}</p>
+                                </div>
+
+                                <div>
+                                    <p className="text-sm text-gray-600 font-medium mb-1">Description</p>
+                                    {requestDetails.description && requestDetails.description.trim() ? (
+                                        <p className="text-gray-800 whitespace-pre-wrap">{requestDetails.description}</p>
+                                    ) : (
+                                        <p className="text-gray-400 italic">None</p>
+                                    )}
+                                </div>
+
+                                {/* Escalation Info */}
+                                {requestDetails.escalatedToStaff && requestDetails.escalationNotes && (
+                                    <div className="bg-red-50 border-l-4 border-red-500 p-4">
+                                        <p className="font-medium text-red-900 mb-2">🚨 Escalation Notes</p>
+                                        <p className="text-red-700">{requestDetails.escalationNotes}</p>
+                                    </div>
+                                )}
+
+                                {/* Photos - Clickable Links */}
+                                <div>
+                                    <p className="text-sm text-gray-600 font-medium mb-3">📸 Photos (Click to view)</p>
+                                    {requestDetails.maintenancePhotos && requestDetails.maintenancePhotos.length > 0 ? (
+                                        <div className="space-y-2">
+                                            {requestDetails.maintenancePhotos.map((photo, idx) => (
+                                                <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded border">
+                                                    <span className="text-sm font-medium text-gray-600 min-w-[100px]">
+                                                        {photo.photoType === 'Initial' ? '📷 Before:' : '✅ After:'}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => handlePhotoClick(photo.photoUrl)}
+                                                        className="text-blue-600 hover:text-blue-800 underline text-sm flex-1 text-left"
+                                                    >
+                                                        {photo.photoUrl.split('/').pop() || 'View Photo'}
+                                                    </button>
+                                                    <span className="text-xs text-gray-500">
+                                                        {new Date(photo.uploadedAt).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-gray-400 italic">None</p>
+                                    )}
+                                </div>
+
+                                {/* Updates */}
+                                {requestDetails.maintenanceUpdates && requestDetails.maintenanceUpdates.length > 0 && (
+                                    <div>
+                                        <p className="text-sm text-gray-600 font-medium mb-2">📝 Maintenance Updates</p>
+                                        <div className="space-y-3">
+                                            {requestDetails.maintenanceUpdates.map((update, idx) => (
+                                                <div key={idx} className="bg-gray-50 p-4 rounded border-l-4 border-blue-400">
+                                                    <p className="text-gray-800 mb-2">{update.notes}</p>
+                                                    {update.costOfParts && update.costOfParts > 0 && (
+                                                        <p className="text-sm text-gray-600">
+                                                            <strong>Cost of Parts:</strong> RM{update.costOfParts.toFixed(2)}
+                                                        </p>
+                                                    )}
+                                                    <p className="text-xs text-gray-500 mt-2">
+                                                        Updated on: {new Date(update.updatedAt).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Timestamps */}
+                                <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 border-t pt-4">
+                                    <div>
+                                        <p className="font-medium">Created At</p>
+                                        <p>{new Date(requestDetails.createdAt).toLocaleString()}</p>
+                                    </div>
+                                    {requestDetails.completedDate && (
+                                        <div>
+                                            <p className="font-medium">Completed At</p>
+                                            <p>{new Date(requestDetails.completedDate).toLocaleString()}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="mt-6">
+                                <button
+                                    onClick={() => {
+                                        setShowDetailsModal(false);
+                                        setRequestDetails(null);
+                                    }}
+                                    className="btn btn-secondary w-full"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Photo Viewer Modal */}
+            {showPhotoModal && selectedPhoto && (
+                <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[60] p-4">
+                    <div className="relative max-w-6xl w-full">
+                        <button
+                            onClick={() => {
+                                setShowPhotoModal(false);
+                                setSelectedPhoto(null);
+                            }}
+                            className="absolute top-4 right-4 text-white bg-black bg-opacity-50 hover:bg-opacity-70 rounded-full w-10 h-10 flex items-center justify-center text-2xl z-10"
+                        >
+                            ×
+                        </button>
+                        <img
+                            src={selectedPhoto}
+                            alt="Maintenance photo"
+                            className="w-full h-auto max-h-[90vh] object-contain rounded-lg"
+                        />
+                        <div className="text-center mt-4">
+                            <a
+                                href={selectedPhoto}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-white underline hover:text-blue-300"
+                            >
+                                Open in new tab
+                            </a>
                         </div>
                     </div>
                 </div>

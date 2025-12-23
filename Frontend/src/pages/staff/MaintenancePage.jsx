@@ -4,6 +4,8 @@ import SearchBar from '../../components/SearchBar';
 import { maintenanceAPI } from '../../services/api';
 import axios from 'axios';
 import { FaWrench, FaExclamationCircle } from 'react-icons/fa';
+import PermissionGuard from '../../components/PermissionGuard';
+import { PERMISSIONS } from '../../utils/permissions';
 
 function MaintenancePage() {
     const [requests, setRequests] = useState([]);
@@ -11,7 +13,9 @@ function MaintenancePage() {
     const [showCreationForm, setShowCreationForm] = useState(false);
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState(null);
+    const [requestDetails, setRequestDetails] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [technicians, setTechnicians] = useState([]);
     const [tenants, setTenants] = useState([]);
@@ -220,6 +224,63 @@ function MaintenancePage() {
         }
     };
 
+    const handleApproveCompletion = async (requestId) => {
+        if (!window.confirm('Approve this completed maintenance request?')) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post(
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${requestId}/complete-signoff`,
+                { Notes: 'Approved' },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            alert('Maintenance request approved successfully!');
+            fetchRequests();
+        } catch (error) {
+            console.error('[ERROR] handleApproveCompletion:', error);
+            alert('Error approving request: ' + (error.response?.data?.message || error.message));
+        }
+    };
+
+    const handleRejectCompletion = async (requestId) => {
+        const reason = prompt('Enter reason for rejection (will be sent to technician):');
+        if (!reason) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post(
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${requestId}/reject`,
+                { Notes: reason },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            alert('Maintenance request rejected and returned to technician.');
+            fetchRequests();
+        } catch (error) {
+            console.error('[ERROR] handleRejectCompletion:', error);
+            alert('Error rejecting request: ' + (error.response?.data?.message || error.message));
+        }
+    };
+
+    const handleViewDetails = async (request) => {
+        console.log('[DEBUG] handleViewDetails: Viewing request:', request);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get(
+                `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/${request.maintenanceRequestId}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            console.log('[DEBUG] handleViewDetails: Success response:', response.data);
+            setRequestDetails(response.data);
+            setShowDetailsModal(true);
+        } catch (error) {
+            console.error('[ERROR] handleViewDetails:', error);
+            console.error('[ERROR] handleViewDetails response:', error.response?.data);
+            alert('Error fetching request details: ' + (error.response?.data?.message || error.message));
+        }
+    };
+
     const getStatusBadge = (status) => {
         const badges = {
             Pending: 'badge-warning',
@@ -281,12 +342,14 @@ function MaintenancePage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-3xl font-bold text-gray-800 flex items-center gap-2"><FaWrench /> Maintenance Requests</h2>
-                    <button
-                        onClick={() => setShowCreationForm(true)}
-                        className="btn btn-primary"
-                    >
-                        + Create for Tenant
-                    </button>
+                    <PermissionGuard permission={PERMISSIONS.MAINTENANCE_CREATE}>
+                        <button
+                            onClick={() => setShowCreationForm(true)}
+                            className="btn btn-primary"
+                        >
+                            + Create for Tenant
+                        </button>
+                    </PermissionGuard>
                 </div>
 
                 {/* Search Bar */}
@@ -313,7 +376,7 @@ function MaintenancePage() {
                                         <div className="flex items-center space-x-3 mb-2">
                                             <h3 className="text-lg font-semibold text-gray-800">#{request.maintenanceRequestId}</h3>
                                             <span className={`badge ${getStatusBadge(request.status)}`}>
-                                                {request.status}
+                                                {request.status === 'Completed' && request.completedDate ? 'Completed with Approval' : request.status}
                                             </span>
                                             <span className={`badge ${getPriorityBadge(request.priority)}`}>
                                                 {request.priority}
@@ -321,23 +384,23 @@ function MaintenancePage() {
                                             {request.escalatedToStaff && (
                                                 <span className="badge bg-red-100 text-red-800 flex items-center gap-1"><FaExclamationCircle /> Escalated</span>
                                             )}
+                                            {request.status === 'Completed' && !request.completedDate && (
+                                                <span className="badge bg-yellow-100 text-yellow-800">Waiting to Approve</span>
+                                            )}
                                         </div>
-                                        <p className="text-sm text-gray-600">
-                                            <strong>Issue Type:</strong> {request.issueType}
+                                        <h4 className="font-bold text-gray-800 text-xl mb-2">{request.issueType}</h4>
+                                        <p className="text-gray-700 text-sm mb-3">
+                                            {request.description && request.description.trim() ? request.description : <span className="italic text-gray-400">None</span>}
                                         </p>
-                                        <p className="text-sm text-gray-600">
-                                            <strong>Unit:</strong> {request.unit?.unitNumber || 'N/A'}
-                                        </p>
-                                        <p className="text-sm text-gray-600">
-                                            <strong>Tenant:</strong> {request.tenant?.user?.name || 'N/A'}
-                                        </p>
+                                        <div className="flex gap-4 text-sm text-gray-600">
+                                            <p><strong>Tenant:</strong> {request.tenant?.user?.name || 'N/A'}</p>
+                                            <p><strong>Unit:</strong> {request.unit?.unitNumber || 'N/A'}</p>
+                                        </div>
                                     </div>
                                     <div className="text-sm text-gray-500">
                                         {new Date(request.createdAt).toLocaleDateString()}
                                     </div>
                                 </div>
-
-                                <p className="text-gray-700 mb-4">{request.description}</p>
 
                                 {/* Display Escalation Notes */}
                                 {request.escalatedToStaff && request.escalationNotes && (
@@ -349,7 +412,7 @@ function MaintenancePage() {
                                     </div>
                                 )}
 
-                                {request.maintenanceAssignment ? (
+                                {request.maintenanceAssignment && (
                                     <div className="bg-green-50 border-l-4 border-green-500 p-3 text-sm mb-3">
                                         <p className="font-medium text-green-900">
                                             ✓ Assigned to: {request.maintenanceAssignment.technician?.user?.name || 'N/A'}
@@ -358,30 +421,70 @@ function MaintenancePage() {
                                             {new Date(request.maintenanceAssignment.assignedDate).toLocaleString()}
                                         </p>
                                     </div>
-                                ) : request.status !== 'Completed' && (
-                                    <button
-                                        onClick={() => {
-                                            setSelectedRequest(request);
-                                            setShowAssignModal(true);
-                                        }}
-                                        className="btn btn-primary btn-sm mb-3"
-                                    >
-                                        Assign Technician
-                                    </button>
                                 )}
 
-                                {/* Delete Button - Only for Admin/Staff and not completed requests */}
-                                {request.status !== 'Completed' && (
-                                    <button
-                                        onClick={() => {
-                                            setSelectedRequest(request);
-                                            setShowDeleteModal(true);
-                                        }}
-                                        className="btn btn-danger btn-sm mb-3 ml-2"
-                                    >
-                                        Delete Request
-                                    </button>
-                                )}
+                                {/* Action Buttons Row */}
+                                <div className="flex gap-2 flex-wrap mb-3">
+                                    {/* Approve/Reject Buttons - For Completed tasks waiting approval */}
+                                    {request.status === 'Completed' && !request.completedDate && (
+                                        <PermissionGuard permission={PERMISSIONS.MAINTENANCE_SIGNOFF}>
+                                            <>
+                                                <button
+                                                    onClick={() => handleApproveCompletion(request.maintenanceRequestId)}
+                                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 shadow-sm"
+                                                >
+                                                    Approve
+                                                </button>
+                                                <button
+                                                    onClick={() => handleRejectCompletion(request.maintenanceRequestId)}
+                                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors duration-200 shadow-sm"
+                                                >
+                                                    Reject
+                                                </button>
+                                            </>
+                                        </PermissionGuard>
+                                    )}
+
+                                    {/* Assign Technician Button */}
+                                    {!request.maintenanceAssignment && request.status !== 'Completed' && (
+                                        <PermissionGuard permission={PERMISSIONS.MAINTENANCE_ASSIGN}>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedRequest(request);
+                                                    setShowAssignModal(true);
+                                                }}
+                                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 shadow-sm"
+                                            >
+                                                Assign Technician
+                                            </button>
+                                        </PermissionGuard>
+                                    )}
+
+                                    {/* Delete Button - Only for not completed requests */}
+                                    {request.status !== 'Completed' && (
+                                        <PermissionGuard permission={PERMISSIONS.MAINTENANCE_CREATE}>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedRequest(request);
+                                                    setShowDeleteModal(true);
+                                                }}
+                                                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors duration-200 shadow-sm"
+                                            >
+                                                Delete Request
+                                            </button>
+                                        </PermissionGuard>
+                                    )}
+
+                                    {/* View Details Button - For Admin/Staff - After Delete for completed tasks */}
+                                    <PermissionGuard permission={PERMISSIONS.MAINTENANCE_VIEW_ALL}>
+                                        <button
+                                            onClick={() => handleViewDetails(request)}
+                                            className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors duration-200 shadow-sm"
+                                        >
+                                            View Details
+                                        </button>
+                                    </PermissionGuard>
+                                </div>
 
                                 {request.maintenanceUpdates && request.maintenanceUpdates.length > 0 && (
                                     <div className="mt-4 space-y-2">
@@ -656,6 +759,197 @@ function MaintenancePage() {
                                     className="btn btn-secondary flex-1"
                                 >
                                     Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* View Details Modal */}
+            {showDetailsModal && requestDetails && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="p-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-2xl font-bold">Maintenance Request Details</h3>
+                                <button
+                                    onClick={() => {
+                                        setShowDetailsModal(false);
+                                        setRequestDetails(null);
+                                    }}
+                                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                                >
+                                    ×
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                {/* Request ID and Status */}
+                                <div className="flex items-center gap-3">
+                                    <h4 className="text-xl font-semibold">Request #{requestDetails.maintenanceRequestId}</h4>
+                                    <span className={`badge ${getStatusBadge(requestDetails.status)}`}>
+                                        {requestDetails.status}
+                                    </span>
+                                    <span className={`badge ${getPriorityBadge(requestDetails.priority)}`}>
+                                        {requestDetails.priority} Priority
+                                    </span>
+                                    {requestDetails.escalatedToStaff && (
+                                        <span className="badge bg-red-100 text-red-800 flex items-center gap-1">
+                                            <FaExclamationCircle /> Escalated
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Property & Building Info */}
+                                <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded">
+                                    <div>
+                                        <p className="text-sm text-gray-600 font-medium">Property</p>
+                                        <p className="text-gray-800">{requestDetails.unit?.floor?.building?.property?.name || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600 font-medium">Building</p>
+                                        <p className="text-gray-800">{requestDetails.unit?.floor?.building?.name || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600 font-medium">Floor</p>
+                                        <p className="text-gray-800">{requestDetails.unit?.floor?.floorNumber || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600 font-medium">Unit</p>
+                                        <p className="text-gray-800">{requestDetails.unit?.unitNumber || 'N/A'}</p>
+                                    </div>
+                                </div>
+
+                                {/* Tenant Info */}
+                                <div className="bg-blue-50 p-4 rounded">
+                                    <p className="text-sm text-gray-600 font-medium mb-2">Tenant Information</p>
+                                    <p className="text-gray-800"><strong>Name:</strong> {requestDetails.tenant?.user?.name || 'N/A'}</p>
+                                    <p className="text-gray-800"><strong>Email:</strong> {requestDetails.tenant?.user?.email || 'N/A'}</p>
+                                    <p className="text-gray-800"><strong>Phone:</strong> {requestDetails.tenant?.user?.phoneNumber || 'N/A'}</p>
+                                </div>
+
+                                {/* Issue Details */}
+                                <div>
+                                    <p className="text-sm text-gray-600 font-medium mb-1">Issue Type</p>
+                                    <p className="text-gray-800 text-lg font-semibold">{requestDetails.issueType}</p>
+                                </div>
+
+                                <div>
+                                    <p className="text-sm text-gray-600 font-medium mb-1">Description</p>
+                                    <p className="text-gray-800 whitespace-pre-wrap">{requestDetails.description}</p>
+                                </div>
+
+                                {/* Escalation Info */}
+                                {requestDetails.escalatedToStaff && requestDetails.escalationNotes && (
+                                    <div className="bg-red-50 border-l-4 border-red-500 p-4">
+                                        <p className="font-medium text-red-900 flex items-center gap-1 mb-2">
+                                            <FaExclamationCircle /> Escalation Notes
+                                        </p>
+                                        <p className="text-red-700">{requestDetails.escalationNotes}</p>
+                                    </div>
+                                )}
+
+                                {/* Assignment Info */}
+                                {requestDetails.maintenanceAssignment && (
+                                    <div className="bg-green-50 border-l-4 border-green-500 p-4">
+                                        <p className="font-medium text-green-900 mb-2">Assigned Technician</p>
+                                        <p className="text-green-800">
+                                            <strong>Name:</strong> {requestDetails.maintenanceAssignment.technician?.user?.name || 'N/A'}
+                                        </p>
+                                        <p className="text-green-800">
+                                            <strong>Specialty:</strong> {requestDetails.maintenanceAssignment.technician?.specialty || 'General'}
+                                        </p>
+                                        <p className="text-green-700 text-sm mt-1">
+                                            Assigned on: {new Date(requestDetails.maintenanceAssignment.assignedDate).toLocaleString()}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Photos */}
+                                {requestDetails.maintenancePhotos && requestDetails.maintenancePhotos.length > 0 && (
+                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                        <p className="text-sm text-blue-800 font-semibold mb-3">📷 Maintenance Photos ({requestDetails.maintenancePhotos.length})</p>
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                            {requestDetails.maintenancePhotos.map((photo, idx) => {
+                                                const filename = photo.photoUrl.split('/').pop();
+                                                const photoSrc = `http://ddac-backend-env.eba-mvuepuat.us-east-1.elasticbeanstalk.com/api/maintenance/photo/${filename}`;
+                                                return (
+                                                    <div key={idx} className="relative">
+                                                        <img
+                                                            src={photoSrc}
+                                                            alt={`Maintenance photo ${idx + 1}`}
+                                                            className="w-full h-40 object-cover rounded-lg border-2 border-gray-300 shadow-md cursor-pointer hover:opacity-90"
+                                                            onClick={() => window.open(photoSrc, '_blank')}
+                                                        />
+                                                        <span className={`absolute top-2 left-2 px-2 py-1 text-xs font-bold rounded ${
+                                                            photo.type === 'Initial' ? 'bg-yellow-500 text-white' :
+                                                            photo.type === 'Before' ? 'bg-orange-500 text-white' :
+                                                            photo.type === 'Completed' || photo.type === 'After' ? 'bg-green-500 text-white' :
+                                                            'bg-gray-500 text-white'
+                                                        }`}>
+                                                            {photo.type || 'Photo'}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* No Photos Message */}
+                                {(!requestDetails.maintenancePhotos || requestDetails.maintenancePhotos.length === 0) && (
+                                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                        <p className="text-sm text-gray-500">📷 No photos uploaded for this request</p>
+                                    </div>
+                                )}
+
+                                {/* Updates */}
+                                {requestDetails.maintenanceUpdates && requestDetails.maintenanceUpdates.length > 0 && (
+                                    <div>
+                                        <p className="text-sm text-gray-600 font-medium mb-2">Maintenance Updates</p>
+                                        <div className="space-y-3">
+                                            {requestDetails.maintenanceUpdates.map((update, idx) => (
+                                                <div key={idx} className="bg-gray-50 p-4 rounded border-l-4 border-blue-400">
+                                                    <p className="text-gray-800 mb-2">{update.notes}</p>
+                                                    {update.costOfParts && (
+                                                        <p className="text-sm text-gray-600">
+                                                            <strong>Cost of Parts:</strong> RM{update.costOfParts.toFixed(2)}
+                                                        </p>
+                                                    )}
+                                                    <p className="text-xs text-gray-500 mt-2">
+                                                        Updated on: {new Date(update.updatedAt).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Timestamps */}
+                                <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 border-t pt-4">
+                                    <div>
+                                        <p className="font-medium">Created At</p>
+                                        <p>{new Date(requestDetails.createdAt).toLocaleString()}</p>
+                                    </div>
+                                    {requestDetails.completedDate && (
+                                        <div>
+                                            <p className="font-medium">Completed At</p>
+                                            <p>{new Date(requestDetails.completedDate).toLocaleString()}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="mt-6">
+                                <button
+                                    onClick={() => {
+                                        setShowDetailsModal(false);
+                                        setRequestDetails(null);
+                                    }}
+                                    className="btn btn-secondary w-full"
+                                >
+                                    Close
                                 </button>
                             </div>
                         </div>

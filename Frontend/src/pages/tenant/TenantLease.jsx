@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Navbar from '../../components/Navbar';
+import { FaExclamationTriangle } from 'react-icons/fa';
 
 export default function TenantLease() {
     const [lease, setLease] = useState(null);
@@ -86,8 +87,8 @@ export default function TenantLease() {
                 {/* Expiry Warning */}
                 {daysUntilExpiry !== null && daysUntilExpiry < 60 && daysUntilExpiry > 0 && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                        <p className="text-yellow-800 font-medium">
-                            ⚠️ Your lease will expire in {daysUntilExpiry} days. Please contact management for renewal.
+                        <p className="text-yellow-800 font-medium flex items-center gap-2">
+                            <FaExclamationTriangle /> Your lease will expire in {daysUntilExpiry} days. Please contact management for renewal.
                         </p>
                     </div>
                 )}

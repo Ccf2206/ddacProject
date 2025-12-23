@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import DataTable from '../../components/DataTable';
 import { paymentsAPI, invoicesAPI } from '../../services/api';
+import PermissionGuard from '../../components/PermissionGuard';
+import { PERMISSIONS } from '../../utils/permissions';
 import { FaChevronDown, FaChevronRight } from 'react-icons/fa';
 
 // function PaymentsPage() {
@@ -294,9 +296,11 @@ function PaymentsPage() {
 
                 <div className="flex justify-between items-center mb-8">
                     <h2 className="text-3xl font-bold text-gray-800">Payments Management</h2>
-                    <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
-                        {showForm ? 'Cancel' : '+ Record Payment'}
-                    </button>
+                    <PermissionGuard permission={PERMISSIONS.PAYMENTS_CREATE}>
+                        <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
+                            {showForm ? 'Cancel' : '+ Record Payment'}
+                        </button>
+                    </PermissionGuard>
                 </div>
 
                 {showForm && (

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
+import { getFirstPermittedRoute } from '../utils/routeUtils';
 
 function Login() {
     const navigate = useNavigate();
@@ -24,7 +25,11 @@ function Login() {
         const result = await login(formData.email, formData.password);
 
         if (result.success) {
-            navigate('/');
+            // Get user and permissions from the store after successful login
+            const { permissions, user } = useAuthStore.getState();
+            // Redirect to first permitted route
+            const firstRoute = getFirstPermittedRoute(permissions, user);
+            navigate(firstRoute);
         }
     };
 

@@ -28,8 +28,8 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/reports/financial
+        [RequirePermission(PermissionConstants.REPORTS_FINANCIAL_VIEW)]
         [HttpGet("financial")]
-        [Authorize(Roles = "Admin,Staff")]
         public async Task<IActionResult> GetFinancialReport(
             [FromQuery] DateTime startDate,
             [FromQuery] DateTime endDate,
@@ -58,8 +58,8 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/reports/occupancy
+        [RequirePermission(PermissionConstants.REPORTS_OCCUPANCY_VIEW)]
         [HttpGet("occupancy")]
-        [Authorize(Roles = "Admin,Staff")]
         public async Task<IActionResult> GetOccupancyReport(
             [FromQuery] int? propertyId = null,
             [FromQuery] int? buildingId = null,
@@ -79,8 +79,8 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/reports/maintenance
+        [RequirePermission(PermissionConstants.REPORTS_MAINTENANCE_VIEW)]
         [HttpGet("maintenance")]
-        [Authorize(Roles = "Admin,Staff")]
         public async Task<IActionResult> GetMaintenanceReport(
             [FromQuery] DateTime startDate,
             [FromQuery] DateTime endDate)
@@ -108,8 +108,8 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/reports/financial/export
+        [RequirePermission(PermissionConstants.REPORTS_FINANCIAL_VIEW)]
         [HttpGet("financial/export")]
-        [Authorize(Roles = "Admin,Staff")]
         public async Task<IActionResult> ExportFinancialReport(
             [FromQuery] DateTime startDate,
             [FromQuery] DateTime endDate,
@@ -137,8 +137,8 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/reports/occupancy/export
+        [RequirePermission(PermissionConstants.REPORTS_OCCUPANCY_VIEW)]
         [HttpGet("occupancy/export")]
-        [Authorize(Roles = "Admin,Staff")]
         public async Task<IActionResult> ExportOccupancyReport([FromQuery] int? propertyId = null)
         {
             try
@@ -163,8 +163,8 @@ namespace ddacProject.Controllers
         }
 
         // GET: api/reports/maintenance/export
+        [RequirePermission(PermissionConstants.REPORTS_MAINTENANCE_VIEW)]
         [HttpGet("maintenance/export")]
-        [Authorize(Roles = "Admin,Staff")]
         public async Task<IActionResult> ExportMaintenanceReport(
             [FromQuery] DateTime startDate,
             [FromQuery] DateTime endDate)

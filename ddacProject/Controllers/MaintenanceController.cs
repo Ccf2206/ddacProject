@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ddacProject.Data;
 using ddacProject.Models;
 using System.Security.Claims;
+using ddacProject.Authorization;
 
 namespace ddacProject.Controllers
 {
@@ -25,52 +26,83 @@ namespace ddacProject.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<MaintenanceRequest>>> GetMaintenanceRequests([FromQuery] string? status)
         {
-            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            try
+            {
+                var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
 
-            var query = _context.MaintenanceRequests
-                .Include(m => m.Unit)
-                .Include(m => m.Tenant)
-                    .ThenInclude(t => t.User)
-                .Include(m => m.MaintenancePhotos)
-                .Include(m => m.MaintenanceAssignment)
-                    .ThenInclude(a => a.Technician)
+                var query = _context.MaintenanceRequests
+                    .Include(m => m.Unit)
+                    .Include(m => m.Tenant)
                         .ThenInclude(t => t.User)
-                .AsNoTracking()
-                .AsSplitQuery()
-                .AsQueryable();
+                    .Include(m => m.MaintenancePhotos)
+                    .Include(m => m.MaintenanceAssignment)
+                        .ThenInclude(a => a.Technician)
+                            .ThenInclude(t => t.User)
+                    .AsNoTracking()
+                    .AsSplitQuery()
+                    .AsQueryable();
 
-            // Filter based on role
-            if (userRole == "Tenant")
-            {
-                var tenant = await _context.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.UserId == userId);
-                if (tenant == null)
-                    return Ok(new List<MaintenanceRequest>());
+                // Filter based on role - Tenants and Technicians can view their own, others need permissions
+                if (userRole == "Tenant")
+                {
+                    var tenant = await _context.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.UserId == userId);
+                    if (tenant == null)
+                        return Ok(new List<MaintenanceRequest>());
 
-                query = query.Where(m => m.TenantId == tenant.TenantId);
+                    query = query.Where(m => m.TenantId == tenant.TenantId);
+                }
+                else if (userRole == "Technician")
+                {
+                    var technician = await _context.Technicians.FirstOrDefaultAsync(t => t.UserId == userId);
+                    if (technician == null)
+                        return Ok(new List<MaintenanceRequest>());
+
+                    query = query.Where(m => m.MaintenanceAssignment != null && m.MaintenanceAssignment.TechnicianId == technician.TechnicianId);
+                }
+                else if (userRole == "Admin" || userRole == "Staff")
+                {
+                    // For Admin/Staff, check permissions
+                    var hasPermission = User.Claims.Any(c => 
+                        c.Type == "Permission" && 
+                        (c.Value == PermissionConstants.MAINTENANCE_VIEW_ALL || 
+                         c.Value == PermissionConstants.MAINTENANCE_VIEW_ASSIGNED ||
+                         c.Value == "*"));
+                    
+                    if (!hasPermission)
+                    {
+                        return StatusCode(403, new { message = "You don't have permission to view maintenance requests. Please log out and log back in to refresh your permissions." });
+                    }
+                    // If has permission, show all requests (no filter)
+                }
+                else
+                {
+                    return Forbid();
+                }
+
+                if (!string.IsNullOrEmpty(status))
+                {
+                    query = query.Where(m => m.Status == status);
+                }
+
+                var requests = await query.OrderByDescending(m => m.CreatedAt).ToListAsync();
+                return Ok(requests);
             }
-            else if (userRole == "Technician")
+            catch (Exception ex)
             {
-                var technician = await _context.Technicians.FirstOrDefaultAsync(t => t.UserId == userId);
-                if (technician == null)
-                    return Ok(new List<MaintenanceRequest>());
-
-                query = query.Where(m => m.MaintenanceAssignment != null && m.MaintenanceAssignment.TechnicianId == technician.TechnicianId);
+                Console.WriteLine($"ERROR in GetMaintenanceRequests: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return StatusCode(500, new { message = "An error occurred while retrieving maintenance requests", error = ex.Message });
             }
-
-            if (!string.IsNullOrEmpty(status))
-            {
-                query = query.Where(m => m.Status == status);
-            }
-
-            var requests = await query.OrderByDescending(m => m.CreatedAt).ToListAsync();
-            return Ok(requests);
         }
 
         // GET: api/maintenance/5
         [HttpGet("{id}")]
         public async Task<ActionResult<MaintenanceRequest>> GetMaintenanceRequest(int id)
         {
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
             var request = await _context.MaintenanceRequests
                 .Include(m => m.Unit)
                    .ThenInclude(u => u.Floor)
@@ -90,9 +122,42 @@ namespace ddacProject.Controllers
                 return NotFound(new { message = "Maintenance request not found" });
             }
 
+            // Check permissions based on role
+            if (userRole == "Tenant")
+            {
+                var tenant = await _context.Tenants.FirstOrDefaultAsync(t => t.UserId == userId);
+                if (tenant == null || request.TenantId != tenant.TenantId)
+                {
+                    return Forbid();
+                }
+            }
+            else if (userRole == "Technician")
+            {
+                var technician = await _context.Technicians.FirstOrDefaultAsync(t => t.UserId == userId);
+                if (technician == null || request.MaintenanceAssignment?.TechnicianId != technician.TechnicianId)
+                {
+                    return Forbid();
+                }
+            }
+            else
+            {
+                // For Admin/Staff, check permissions
+                var hasPermission = User.Claims.Any(c => 
+                    c.Type == "Permission" && 
+                    (c.Value == PermissionConstants.MAINTENANCE_VIEW_ALL || 
+                     c.Value == PermissionConstants.MAINTENANCE_VIEW_ASSIGNED ||
+                     c.Value == "*"));
+                
+                if (!hasPermission)
+                {
+                    return Forbid();
+                }
+            }
+
             return Ok(request);
         }
 
+        [RequirePermission(PermissionConstants.MAINTENANCE_CREATE)]
         [HttpPost]
         public async Task<ActionResult<MaintenanceRequest>> CreateMaintenanceRequest([FromBody] CreateMaintenanceRequestDto dto)
         {
@@ -193,7 +258,7 @@ namespace ddacProject.Controllers
         }
 
         // PUT: api/maintenance/5/assign
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.MAINTENANCE_ASSIGN)]
         [HttpPut("{id}/assign")]
         public async Task<IActionResult> AssignTechnician(int id, [FromBody] AssignTechnicianDto dto)
         {
@@ -250,7 +315,7 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/maintenance/5/update
-        [Authorize(Roles = "Technician")]
+        [RequirePermission(PermissionConstants.MAINTENANCE_UPDATE)]
         [HttpPost("{id}/update")]
         public async Task<IActionResult> AddMaintenanceUpdate(int id, [FromBody] AddMaintenanceUpdateDto dto)
         {
@@ -287,14 +352,18 @@ namespace ddacProject.Controllers
             request.Status = dto.Status;
             request.UpdatedAt = DateTime.UtcNow;
 
-            // Create notification for tenant
-            _context.Notifications.Add(new Notification
+            // Create notification for tenant - ONLY if status is NOT Completed
+            // Tenant will be notified only when admin approves the completion
+            if (dto.Status != "Completed")
             {
-                UserId = request.Tenant.UserId,
-                Message = $"Your maintenance request #{id} has been updated: {dto.Status}",
-                Type = "MaintenanceUpdate",
-                IsRead = false
-            });
+                _context.Notifications.Add(new Notification
+                {
+                    UserId = request.Tenant.UserId,
+                    Message = $"Your maintenance request #{id} has been updated: {dto.Status}",
+                    Type = "MaintenanceUpdate",
+                    IsRead = false
+                });
+            }
 
             await _context.SaveChangesAsync();
 
@@ -302,6 +371,7 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/maintenance/5/photos
+        [RequirePermission(PermissionConstants.MAINTENANCE_CREATE, PermissionConstants.MAINTENANCE_UPDATE)]
         [HttpPost("{id}/photos")]
         public async Task<IActionResult> UploadMaintenancePhoto(int id, [FromForm] IFormFile file, [FromForm] string type = "Initial")
         {
@@ -323,7 +393,13 @@ namespace ddacProject.Controllers
                 return BadRequest(new { message = "Invalid file type" });
             }
 
-            var uploadsFolder = Path.Combine(_environment.WebRootPath, "uploads", "maintenance");
+            // Use WebRootPath with fallback
+            var webRootPath = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var uploadsFolder = Path.Combine(webRootPath, "uploads", "maintenance");
+            
+            Console.WriteLine($"[UploadMaintenancePhoto] WebRootPath: {webRootPath}");
+            Console.WriteLine($"[UploadMaintenancePhoto] UploadsFolder: {uploadsFolder}");
+            
             Directory.CreateDirectory(uploadsFolder);
 
             var uniqueFileName = $"{Guid.NewGuid()}{extension}";
@@ -333,6 +409,9 @@ namespace ddacProject.Controllers
             {
                 await file.CopyToAsync(fileStream);
             }
+            
+            Console.WriteLine($"[UploadMaintenancePhoto] File saved to: {filePath}");
+            Console.WriteLine($"[UploadMaintenancePhoto] File exists after save: {System.IO.File.Exists(filePath)}");
 
             var photoUrl = $"/uploads/maintenance/{uniqueFileName}";
 
@@ -350,10 +429,19 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/maintenance/5/escalate
-        [Authorize(Roles = "Technician")]
+        [Authorize]
         [HttpPost("{id}/escalate")]
         public async Task<IActionResult> EscalateToStaff(int id, [FromBody] ddacProject.DTOs.EscalateRequestDto dto)
         {
+            // Allow Technicians to escalate their assigned tasks
+            var roleName = User.FindFirst(ClaimTypes.Role)?.Value;
+            var hasPermission = User.HasClaim("Permission", PermissionConstants.MAINTENANCE_ESCALATE);
+            
+            if (roleName != "Technician" && roleName != "Admin" && roleName != "Staff" && !hasPermission)
+            {
+                return Forbid();
+            }
+
             var request = await _context.MaintenanceRequests
                 .Include(m => m.Unit)
                 .FirstOrDefaultAsync(m => m.MaintenanceRequestId == id);
@@ -387,30 +475,83 @@ namespace ddacProject.Controllers
         }
 
         // POST: api/maintenance/5/complete-signoff
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.MAINTENANCE_SIGNOFF)]
         [HttpPost("{id}/complete-signoff")]
         public async Task<IActionResult> StaffSignOff(int id, [FromBody] ddacProject.DTOs.SignOffDto dto)
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var staff = await _context.Staff.FirstOrDefaultAsync(s => s.UserId == userId);
 
-            var request = await _context.MaintenanceRequests.FindAsync(id);
+            var request = await _context.MaintenanceRequests
+                .Include(m => m.Tenant)
+                    .ThenInclude(t => t.User)
+                .FirstOrDefaultAsync(m => m.MaintenanceRequestId == id);
+
             if (request == null)
             {
                 return NotFound(new { message = "Maintenance request not found" });
             }
 
             request.Status = "Completed";
+            request.CompletedDate = DateTime.UtcNow;
             request.CompletedByStaffId = staff?.StaffId;
             request.UpdatedAt = DateTime.UtcNow;
 
+            // Notify tenant that their maintenance request has been completed and approved
+            _context.Notifications.Add(new Notification
+            {
+                UserId = request.Tenant.UserId,
+                Message = $"Your maintenance request #{id} has been completed and approved by staff.",
+                Type = "MaintenanceCompleted",
+                IsRead = false
+            });
+
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Maintenance request completed and signed off", request });
+            return Ok(new { message = "Maintenance request approved and completed", request });
+        }
+
+        // POST: api/maintenance/5/reject
+        [RequirePermission(PermissionConstants.MAINTENANCE_SIGNOFF)]
+        [HttpPost("{id}/reject")]
+        public async Task<IActionResult> RejectCompletion(int id, [FromBody] ddacProject.DTOs.SignOffDto dto)
+        {
+            var request = await _context.MaintenanceRequests.FindAsync(id);
+            if (request == null)
+            {
+                return NotFound(new { message = "Maintenance request not found" });
+            }
+
+            // Set status back to InProgress so technician can re-work it
+            request.Status = "InProgress";
+            request.UpdatedAt = DateTime.UtcNow;
+
+            // Notify the assigned technician if there is one
+            if (request.MaintenanceAssignment != null)
+            {
+                var assignment = await _context.MaintenanceAssignments
+                    .Include(a => a.Technician)
+                    .FirstOrDefaultAsync(a => a.MaintenanceRequestId == id);
+
+                if (assignment != null)
+                {
+                    _context.Notifications.Add(new Notification
+                    {
+                        UserId = assignment.Technician.UserId,
+                        Message = $"Maintenance request #{id} was rejected by staff. Please review and update.",
+                        Type = "MaintenanceRejection",
+                        IsRead = false
+                    });
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Maintenance request rejected and returned to technician", request });
         }
 
         // DELETE: api/maintenance/5
-        [Authorize(Roles = "Admin,Staff")]
+        [RequirePermission(PermissionConstants.MAINTENANCE_ASSIGN)]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteMaintenanceRequest(int id)
         {
@@ -441,6 +582,61 @@ namespace ddacProject.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Maintenance request deleted successfully" });
+        }
+
+        // GET: api/maintenance/photo/{filename}
+        [AllowAnonymous]
+        [HttpGet("photo/{filename}")]
+        public IActionResult GetMaintenancePhoto(string filename)
+        {
+            try
+            {
+                // Try multiple possible paths for the file
+                var webRootPath = _environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+                var uploadsFolder = Path.Combine(webRootPath, "uploads", "maintenance");
+                var filePath = Path.Combine(uploadsFolder, filename);
+
+                Console.WriteLine($"[GetMaintenancePhoto] Looking for file: {filePath}");
+                Console.WriteLine($"[GetMaintenancePhoto] WebRootPath: {webRootPath}");
+                Console.WriteLine($"[GetMaintenancePhoto] File exists: {System.IO.File.Exists(filePath)}");
+
+                if (!System.IO.File.Exists(filePath))
+                {
+                    // Try alternative path
+                    var altPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "maintenance", filename);
+                    Console.WriteLine($"[GetMaintenancePhoto] Trying alternative path: {altPath}");
+                    
+                    if (System.IO.File.Exists(altPath))
+                    {
+                        filePath = altPath;
+                    }
+                    else
+                    {
+                        return NotFound(new { 
+                            message = "Photo not found", 
+                            searchedPath = filePath,
+                            altPath = altPath,
+                            filename = filename 
+                        });
+                    }
+                }
+
+                var extension = Path.GetExtension(filename).ToLower();
+                var contentType = extension switch
+                {
+                    ".jpg" or ".jpeg" => "image/jpeg",
+                    ".png" => "image/png",
+                    _ => "application/octet-stream"
+                };
+
+                var fileBytes = System.IO.File.ReadAllBytes(filePath);
+                return File(fileBytes, contentType);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GetMaintenancePhoto] Error: {ex.Message}");
+                return StatusCode(500, new { message = "Error retrieving photo", error = ex.Message });
+            }
         }
     }
 

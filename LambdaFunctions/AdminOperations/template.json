@@ -1,0 +1,519 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Transform": "AWS::Serverless-2016-10-31",
+  "Description": "AWS SAM template for Property Management System Admin Operations Lambda Functions",
+  
+  "Parameters": {
+    "DBConnectionString": {
+      "Type": "String",
+      "Description": "MySQL database connection string",
+      "Default": "Server=localhost;Database=propertymanagementdb;User=root;Password=;Port=3306;"
+    },
+    "S3BucketName": {
+      "Type": "String",
+      "Description": "S3 bucket name for storing documents",
+      "Default": "property-management-documents"
+    }
+  },
+
+  "Globals": {
+    "Function": {
+      "Runtime": "dotnet8",
+      "Timeout": 30,
+      "MemorySize": 512,
+      "Environment": {
+        "Variables": {
+          "DB_CONNECTION_STRING": { "Ref": "DBConnectionString" },
+          "S3_BUCKET_NAME": { "Ref": "S3BucketName" }
+        }
+      }
+    }
+  },
+
+  "Resources": {
+    "DocumentsBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": { "Ref": "S3BucketName" },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "Id": "DeleteOldVersions",
+              "Status": "Enabled",
+              "NoncurrentVersionExpirationInDays": 90
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "CorsConfiguration": {
+          "CorsRules": [
+            {
+              "AllowedOrigins": ["*"],
+              "AllowedMethods": ["GET", "PUT", "POST", "DELETE"],
+              "AllowedHeaders": ["*"],
+              "MaxAge": 3000
+            }
+          ]
+        }
+      }
+    },
+
+    "AdminOperationsApi": {
+      "Type": "AWS::Serverless::Api",
+      "Properties": {
+        "Name": "PropertyManagement-AdminOperations-API",
+        "StageName": "prod",
+        "Cors": {
+          "AllowMethods": "'GET,POST,PUT,DELETE,OPTIONS'",
+          "AllowHeaders": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+          "AllowOrigin": "'*'"
+        },
+        "Auth": {
+          "ApiKeyRequired": false
+        }
+      }
+    },
+
+    "LambdaExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        ],
+        "Policies": [
+          {
+            "PolicyName": "S3AccessPolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:PutObject",
+                    "s3:DeleteObject",
+                    "s3:ListBucket"
+                  ],
+                  "Resource": [
+                    { "Fn::Sub": "arn:aws:s3:::${S3BucketName}" },
+                    { "Fn::Sub": "arn:aws:s3:::${S3BucketName}/*" }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+
+    "GetUsersFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-GetUsers",
+        "Handler": "AdminOperations::AdminOperations.Functions.GetUsersFunction::FunctionHandler",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/users",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    },
+
+    "CreateUserFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-CreateUser",
+        "Handler": "AdminOperations::AdminOperations.Functions.CreateUserFunction::FunctionHandler",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/users",
+              "Method": "POST"
+            }
+          }
+        }
+      }
+    },
+
+    "UpdateUserFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-UpdateUser",
+        "Handler": "AdminOperations::AdminOperations.Functions.UpdateUserFunction::FunctionHandler",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/users/{id}",
+              "Method": "PUT"
+            }
+          }
+        }
+      }
+    },
+
+    "DeleteUserFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-DeleteUser",
+        "Handler": "AdminOperations::AdminOperations.Functions.DeleteUserFunction::FunctionHandler",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/users/{id}",
+              "Method": "DELETE"
+            }
+          }
+        }
+      }
+    },
+
+    "GetRolesFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-GetRoles",
+        "Handler": "AdminOperations::AdminOperations.Functions.GetRolesFunction::FunctionHandler",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/roles",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    },
+
+    "CreateRoleFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-CreateRole",
+        "Handler": "AdminOperations::AdminOperations.Functions.CreateRoleFunction::FunctionHandler",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/roles",
+              "Method": "POST"
+            }
+          }
+        }
+      }
+    },
+
+    "DeleteRoleFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-DeleteRole",
+        "Handler": "AdminOperations::AdminOperations.Functions.DeleteRoleFunction::FunctionHandler",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/roles/{id}",
+              "Method": "DELETE"
+            }
+          }
+        }
+      }
+    },
+
+    "GetAuditLogsFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-GetAuditLogs",
+        "Handler": "AdminOperations::AdminOperations.Functions.GetAuditLogsFunction::FunctionHandler",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/auditlogs",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    },
+
+    "GetAuditLogByIdFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-GetAuditLogById",
+        "Handler": "AdminOperations::AdminOperations.Functions.GetAuditLogByIdFunction::FunctionHandler",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/auditlogs/{id}",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    },
+
+    "GetApprovalsFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-GetApprovals",
+        "Handler": "AdminOperations::AdminOperations.Functions.GetApprovalsFunction::FunctionHandler",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/approvals",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    },
+
+    "ApproveActionFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-ApproveAction",
+        "Handler": "AdminOperations::AdminOperations.Functions.ApproveActionFunction::FunctionHandler",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/approvals/{id}/approve",
+              "Method": "PUT"
+            }
+          }
+        }
+      }
+    },
+
+    "RejectActionFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-RejectAction",
+        "Handler": "AdminOperations::AdminOperations.Functions.RejectActionFunction::FunctionHandler",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/approvals/{id}/reject",
+              "Method": "PUT"
+            }
+          }
+        }
+      }
+    },
+
+    "GetLeaseTemplatesFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-GetLeaseTemplates",
+        "Handler": "AdminOperations::AdminOperations.Functions.LeaseTemplateFunctions::GetLeaseTemplates",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/lease-templates",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    },
+
+    "UploadLeaseTemplateFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-UploadLeaseTemplate",
+        "Handler": "AdminOperations::AdminOperations.Functions.LeaseTemplateFunctions::UploadLeaseTemplate",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Timeout": 60,
+        "MemorySize": 1024,
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/lease-templates",
+              "Method": "POST"
+            }
+          }
+        }
+      }
+    },
+
+    "DeleteLeaseTemplateFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-DeleteLeaseTemplate",
+        "Handler": "AdminOperations::AdminOperations.Functions.LeaseTemplateFunctions::DeleteLeaseTemplate",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/lease-templates/{id}",
+              "Method": "DELETE"
+            }
+          }
+        }
+      }
+    },
+
+    "GetLeaseTemplateDownloadUrlFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-GetLeaseTemplateDownloadUrl",
+        "Handler": "AdminOperations::AdminOperations.Functions.LeaseTemplateFunctions::GetDownloadUrl",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/lease-templates/{id}/download",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    },
+
+    "UploadAdminDocumentFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-UploadAdminDocument",
+        "Handler": "AdminOperations::AdminOperations.Functions.AdminDocumentFunctions::UploadDocument",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Timeout": 60,
+        "MemorySize": 1024,
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/documents",
+              "Method": "POST"
+            }
+          }
+        }
+      }
+    },
+
+    "GetAdminDocumentsFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "PM-GetAdminDocuments",
+        "Handler": "AdminOperations::AdminOperations.Functions.AdminDocumentFunctions::GetDocuments",
+        "CodeUri": "./bin/Release/net8.0/publish/",
+        "Role": { "Fn::GetAtt": ["LambdaExecutionRole", "Arn"] },
+        "Events": {
+          "ApiEvent": {
+            "Type": "Api",
+            "Properties": {
+              "RestApiId": { "Ref": "AdminOperationsApi" },
+              "Path": "/admin/documents",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "Outputs": {
+    "ApiUrl": {
+      "Description": "API Gateway endpoint URL",
+      "Value": {
+        "Fn::Sub": "https://${AdminOperationsApi}.execute-api.${AWS::Region}.amazonaws.com/prod/"
+      }
+    },
+    "S3BucketName": {
+      "Description": "S3 bucket for document storage",
+      "Value": { "Ref": "DocumentsBucket" }
+    },
+    "S3BucketArn": {
+      "Description": "S3 bucket ARN",
+      "Value": { "Fn::GetAtt": ["DocumentsBucket", "Arn"] }
+    }
+  }
+}

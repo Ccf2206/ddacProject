@@ -3,6 +3,8 @@ import Navbar from '../../components/Navbar';
 import SearchBar from '../../components/SearchBar';
 import UnitForm from '../../components/UnitForm';
 import ConfirmModal from '../../components/ConfirmModal';
+import PermissionGuard from '../../components/PermissionGuard';
+import { PERMISSIONS } from '../../utils/permissions';
 import { unitsAPI } from '../../services/api';
 
 function UnitsPage() {
@@ -112,9 +114,11 @@ function UnitsPage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="flex justify-between items-center mb-8">
                     <h2 className="text-3xl font-bold text-gray-800">Units Management</h2>
-                    <button onClick={handleCreate} className="btn btn-primary">
-                        + New Unit
-                    </button>
+                    <PermissionGuard permission={PERMISSIONS.UNITS_CREATE}>
+                        <button onClick={handleCreate} className="btn btn-primary">
+                            + New Unit
+                        </button>
+                    </PermissionGuard>
                 </div>
 
                 {/* Filters */}
@@ -203,18 +207,22 @@ function UnitsPage() {
                                 )}
 
                                 <div className="mt-4 flex space-x-2">
-                                    <button
-                                        onClick={() => handleEdit(unit)}
-                                        className="flex-1 text-sm text-primary-600 border border-primary-600 rounded px-3 py-1 hover:bg-primary-600 hover:text-white transition-colors"
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        onClick={() => { setDeletingUnit(unit); setShowDeleteModal(true); }}
-                                        className="flex-1 text-sm text-red-600 border border-red-600 rounded px-3 py-1 hover:bg-red-600 hover:text-white transition-colors"
-                                    >
-                                        Delete
-                                    </button>
+                                    <PermissionGuard permission={PERMISSIONS.UNITS_EDIT}>
+                                        <button
+                                            onClick={() => handleEdit(unit)}
+                                            className="flex-1 text-sm text-primary-600 border border-primary-600 rounded px-3 py-1 hover:bg-primary-600 hover:text-white transition-colors"
+                                        >
+                                            Edit
+                                        </button>
+                                    </PermissionGuard>
+                                    <PermissionGuard permission={PERMISSIONS.UNITS_DELETE}>
+                                        <button
+                                            onClick={() => { setDeletingUnit(unit); setShowDeleteModal(true); }}
+                                            className="flex-1 text-sm text-red-600 border border-red-600 rounded px-3 py-1 hover:bg-red-600 hover:text-white transition-colors"
+                                        >
+                                            Delete
+                                        </button>
+                                    </PermissionGuard>
                                 </div>
                             </div>
                             ))}
