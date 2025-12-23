@@ -16,7 +16,7 @@ Your project is now configured to run locally with MySQL database.
    - File: `ddacProject/Properties/launchSettings.json`
 
 4. ? **AWS Lambda Functions Created** ? Admin Operations with API Gateway & S3 (NEW!)
-   - Directory: `LambdaFunctions/AdminOperations/`
+   - Directory: `ddacProject/LambdaFunctions/AdminOperations/`
    - 18 serverless functions for admin operations
    - **API Gateway** for REST API endpoints
    - **S3 Bucket** for document storage (lease templates & admin documents)
@@ -34,7 +34,7 @@ Make sure you have:
 - ? Node.js installed
 
 **?? For Lambda S3 Features (Optional):**
-- ? Run database schema: `mysql -u root propertymanagementdb < LambdaFunctions/AdminOperations/database-schema.sql`
+- ? Run database schema: `mysql -u root propertymanagementdb < ddacProject\LambdaFunctions\AdminOperations\database-schema.sql`
 - ? This creates `LeaseTemplates` and `AdminDocuments` tables for S3 metadata
 
 ---
@@ -141,7 +141,7 @@ Open browser: http://localhost:5173
 ## ?? AWS Lambda Functions - Deploy to Production (Optional)
 
 ### ?? Goal
-Deploy all 12 admin Lambda functions to AWS for serverless production environment.
+Deploy all 18 admin Lambda functions to AWS for serverless production environment.
 
 ---
 
@@ -189,7 +189,7 @@ AWS Lambda functions have been created for **all admin operations** with **API G
 ### Files Created
 
 ```
-LambdaFunctions/AdminOperations/
+ddacProject/LambdaFunctions/AdminOperations/
 ??? AdminOperations.csproj          # Project with dependencies (AWS SDK S3)
 ??? template.json                   # AWS SAM template with API Gateway & S3
 ??? deploy.sh / deploy.bat          # Deployment scripts
@@ -257,7 +257,7 @@ aws s3 mb s3://your-lambda-deployment-bucket --region us-east-1
 
 #### Step 1: Update Configuration
 
-Edit `LambdaFunctions/AdminOperations/template.json`:
+Edit `ddacProject/LambdaFunctions/AdminOperations/template.json`:
 
 ```json
 "Parameters": {
@@ -274,13 +274,13 @@ Edit `LambdaFunctions/AdminOperations/template.json`:
 
 #### Step 2: Update Deployment Script
 
-**Windows:** Edit `LambdaFunctions/AdminOperations/deploy.bat` line 52:
+**Windows:** Edit `ddacProject/LambdaFunctions/AdminOperations/deploy.bat` line 52:
 ```batch
 --s3-bucket your-lambda-deployment-bucket
 ```
 Change to your actual bucket name.
 
-**Linux/Mac:** Edit `LambdaFunctions/AdminOperations/deploy.sh` line 24:
+**Linux/Mac:** Edit `ddacProject/LambdaFunctions/AdminOperations/deploy.sh` line 24:
 ```bash
 --s3-bucket your-lambda-deployment-bucket
 ```
@@ -290,13 +290,13 @@ Change to your actual bucket name.
 
 **Windows:**
 ```powershell
-cd LambdaFunctions\AdminOperations
+cd ddacProject\LambdaFunctions\AdminOperations
 deploy.bat
 ```
 
 **Linux/Mac:**
 ```bash
-cd LambdaFunctions/AdminOperations
+cd ddacProject/LambdaFunctions/AdminOperations
 chmod +x deploy.sh
 ./deploy.sh
 ```
@@ -568,8 +568,8 @@ VITE_API_URL=https://YOUR_API_URL
 
 ### ?? Additional Lambda Documentation
 
-- **Detailed Documentation:** `LambdaFunctions/AdminOperations/README.md`
-- **Architecture Overview:** `LambdaFunctions/IMPLEMENTATION_SUMMARY.md`
+- **Detailed Documentation:** `ddacProject/LambdaFunctions/AdminOperations/README.md`
+- **Architecture Overview:** `ddacProject/LambdaFunctions/IMPLEMENTATION_SUMMARY.md`
 - **AWS Lambda Docs:** https://docs.aws.amazon.com/lambda/
 
 ---
@@ -592,7 +592,7 @@ VITE_API_URL=https://YOUR_API_URL
 
 ### ?? New Files Created:
 
-5. ? **LambdaFunctions/AdminOperations/** (Complete serverless admin operations)
+5. ? **ddacProject/LambdaFunctions/AdminOperations/** (Complete serverless admin operations)
    - 18 Lambda functions ready for AWS deployment
    - Full CRUD operations for users, roles, audit logs, and approvals
    - **S3 document management** for lease templates and admin documents
